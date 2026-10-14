@@ -69,6 +69,9 @@ DEFAULT_CONFIG = {
     "exclude_categories": [],
     # 标题含这些关键词的不自动推送（招聘、专业介绍等噪声）；空 = 不排除
     "exclude_keywords": [],
+    # 发布日期超过这个天数的老通知不自动推送（站点改版翻出历史归档时防轰炸）；
+    # 0 = 不限。补发只补「停机期间发布的」，不补「几年前的」
+    "max_age_days": 30,
     # 等 openclaw 发送回执的超时（秒）。超时多半其实已送达——按已推送标记，防止下轮重发轰炸
     "send_timeout_seconds": 90,
 }
@@ -199,6 +202,20 @@ def fetch_new_items(db_path: str, seen_urls: set, cfg: dict) -> list[dict]:
         ex_kw = [k for k in (cfg.get("exclude_keywords") or []) if k]
         if any(k in title for k in ex_kw):
             continue
+        # 发布日期太老的不自动推：站点改版/翻页露出的历史归档会以“新条目”进库，
+        # 只看 first_seen 会把几年前的通知当补发轰炸出来。老通知留给 bot 按需查
+        try:
+            max_age = float(cfg.get("max_age_days", 30))
+        except (TypeError, ValueError):
+            max_age = 30.0
+        pd = (r["pub_date"] or "")[:10]
+        if max_age > 0 and pd:
+            try:
+                age_days = (datetime.now().date() - datetime.strptime(pd, "%Y-%m-%d").date()).days
+            except ValueError:
+                age_days = None
+            if age_days is not None and age_days > max_age:
+                continue
         out.append(dict(r))
     out.sort(key=lambda x: x.get("score") or 0, reverse=True)
     return out

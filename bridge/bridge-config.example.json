@@ -10,6 +10,7 @@
   "quiet_hours": [],
   "push_history_on_start": false,
   "max_push_per_round": 0,
+  "max_age_days": 30,
   "send_interval_seconds": 1.2,
   "exclude_categories": [],
   "exclude_keywords": [],
