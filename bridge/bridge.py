@@ -52,7 +52,7 @@ DEFAULT_CONFIG = {
     # 一般填自己的微信号会话，如 "user:wxid_xxx"；留空则首次运行时打印候选列表
     "target": "",
     # 抓取+推送间隔（分钟）。22 个站点抓一轮要 1-3 分钟，别设太小
-    "interval_minutes": 15,
+    "interval_minutes": 60,
     # 只推相关度不低于该分数的通知（0 = 全推）
     "min_score": 0.0,
     # 只推这些分类（空 = 全部）。分类 id 例如 jobstart/makeup/money/gongshi
@@ -481,7 +481,7 @@ def cmd_setup() -> int:
     v = input(f"抓取+推送间隔分钟 ({cfg['interval_minutes']}): ").strip()
     if v:
         try:
-            cfg["interval_minutes"] = max(3, int(v))
+            cfg["interval_minutes"] = max(60, int(v))
         except ValueError:
             pass
 
@@ -547,7 +547,7 @@ def main() -> int:
         log("bridge-config.json 里 target 还没填。先跑:  python bridge.py --targets  看看渠道状态")
         return 2
 
-    interval = max(3, int(cfg.get("interval_minutes") or 15)) * 60
+    interval = max(60, int(cfg.get("interval_minutes") or 60)) * 60
 
     if args.once:
         run_round(cfg, state, args.dry_run)

@@ -6,3 +6,16 @@ attachments/
 *.db
 __pycache__/
 *.pyc
+
+# Private runtime / local deployment components
+qq-service/runtime/
+qq-client/
+school-radar-pkg/
+weixin-bridge/bridge-config.json
+**/sent-state.json
+**/bridge.log
+*.sqlite
+*.sqlite-*
+*.db-*
+*.log
+.env
