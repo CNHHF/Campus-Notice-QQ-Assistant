@@ -52,7 +52,7 @@ DEFAULT_CONFIG = {
     # 一般填自己的微信号会话，如 "user:wxid_xxx"；留空则首次运行时打印候选列表
     "target": "",
     # 抓取+推送间隔（分钟）。22 个站点抓一轮要 1-3 分钟，别设太小
-    "interval_minutes": 60,
+    "interval_minutes": 15,
     # 只推相关度不低于该分数的通知（0 = 全推）
     "min_score": 0.0,
     # 只推这些分类（空 = 全部）。分类 id 例如 jobstart/makeup/money/gongshi
@@ -311,11 +311,16 @@ def send_wechat(cfg: dict, text: str) -> tuple[str, str]:
     out = (r.stdout or "") + (r.stderr or "")
     if r.returncode == 0:
         return "ok", out.strip()[:300]
-    # 微信 bot 平台要求：会话须由你先发一条消息开启（context token 随入站消息签发）。
-    # 报 "prepare failed" 时提示用户去微信里给 bot 发条消息刷新会话。
-    if "prepare failed" in out:
-        out += " | 提示: 请在微信里给本 bot 随便发一条消息（如“你好”），刷新推送会话后即可恢复"
     return "fail", out.strip()[:400]
+
+
+def push_health(status: str, pending: int = 0) -> None:
+    # Only fixed, non-sensitive diagnostics are exposed to the management page.
+    save_json(BASE_DIR / "push-health.json", {
+        "status": status, "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "pending": pending,
+        "reason": "微信接口返回 prepare failed；可能是会话凭证失效或平台限制" if status == "restricted" else "",
+    })
 
 
 # ---------------------------------------------------------------------- 主循环
@@ -368,12 +373,19 @@ def run_round(cfg: dict, state: dict, dry_run: bool) -> str:
     quiet = in_quiet_hours(cfg.get("quiet_hours") or [])
     gap = float(cfg.get("send_interval_seconds") or 1.2)
 
+    if cfg.get("weixin_push_paused"):
+        log("微信自动推送已暂停，抓取正常，待发记录保留")
+        return "ok"
+    restricted_failures = 0
     # 一次补发多条（如开机后补齐停机期间的）：先发一条说明再逐条发
     if not dry_run and not quiet and len(batch) >= 5:
         lead = f"📮 有 {len(batch)} 条新通知（含停机期间补发），现在逐条发给你："
         st, out = send_wechat(cfg, lead)
         if st == "fail":
             log(f"补发说明推送失败: {out}")
+            if "prepare failed" in out.lower():
+                restricted_failures = 1
+                push_health("restricted", len(batch))
 
     ok_count = 0
     for i, it in enumerate(batch):
@@ -393,13 +405,19 @@ def run_round(cfg: dict, state: dict, dry_run: bool) -> str:
             log(f"免打扰时段，跳过推送: {title}")
             continue
         else:
+            if load_config().get("weixin_push_paused"):
+                log("微信自动推送已暂停，本轮停止，待发记录保留")
+                break
             st, out = send_wechat(cfg, text)
             if st == "ok":
+                restricted_failures = 0
+                push_health("ok")
                 ok_count += 1
                 log(f"已推送: {title}")
                 if i < len(batch) - 1:
                     time.sleep(gap)
             elif st == "timeout":
+                restricted_failures = 0
                 # 超时≠没送到。openclaw 发出去只是回执慢，多数情况消息已经到了；
                 # 此时必须记为已推送，否则下一轮重发就是重复轰炸。
                 # 万一真丢了，按需时说一声即可补查。
@@ -407,6 +425,14 @@ def run_round(cfg: dict, state: dict, dry_run: bool) -> str:
                 log(f"推送超时（按已送达处理，防重复）: {title}")
             else:
                 log(f"推送失败: {title} → {out}")
+                if "prepare failed" in out.lower():
+                    restricted_failures += 1
+                    push_health("restricted", len(batch) - ok_count)
+                    if restricted_failures >= 2:
+                        log(f"微信发送受限，连续两次 prepare failed，本轮停止；{len(batch) - ok_count} 条尚未送达。可先给 bot 发消息刷新会话；若仍失败需检查平台限制。下轮按原计划尝试。")
+                        break
+                else:
+                    restricted_failures = 0
                 # 失败不记入 sent，下一轮重试
                 continue
         if not dry_run:
@@ -481,7 +507,7 @@ def cmd_setup() -> int:
     v = input(f"抓取+推送间隔分钟 ({cfg['interval_minutes']}): ").strip()
     if v:
         try:
-            cfg["interval_minutes"] = max(60, int(v))
+            cfg["interval_minutes"] = max(3, int(v))
         except ValueError:
             pass
 
@@ -512,6 +538,18 @@ def list_targets(cfg: dict) -> None:
         print(f"执行失败: {e}")
 
 
+def wait_for_next_round(radar_down=False):
+    # Re-read while sleeping so a frontend edit takes effect without a restart.
+    started = time.monotonic()
+    save_json(BASE_DIR / "crawl-schedule.json", {"wait_started_epoch":time.time()})
+    while True:
+        seconds = 60 if radar_down else min(180, max(10, int(load_config().get("interval_minutes") or 60))) * 60
+        remaining = seconds - (time.monotonic() - started)
+        if remaining <= 0:
+            return
+        time.sleep(min(5, remaining))
+
+
 def main() -> int:
     # Windows 控制台默认 GBK，打印 emoji 会崩；统一改 UTF-8 输出
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -522,6 +560,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="不真正发送，只打印")
     ap.add_argument("--reset-state", action="store_true", help="清空已推送记录")
     ap.add_argument("--targets", action="store_true", help="显示 openclaw 渠道状态（找 target 用）")
+    ap.add_argument("--wait-first-round", action="store_true", help="维护重启时先等待正常周期，避免立即抓取或发送")
     args = ap.parse_args()
 
     if args.setup:
@@ -547,13 +586,15 @@ def main() -> int:
         log("bridge-config.json 里 target 还没填。先跑:  python bridge.py --targets  看看渠道状态")
         return 2
 
-    interval = max(60, int(cfg.get("interval_minutes") or 60)) * 60
+    interval = min(180, max(10, int(cfg.get("interval_minutes") or 60))) * 60
 
     if args.once:
         run_round(cfg, state, args.dry_run)
         return 0
 
     log(f"推送桥启动：每 {interval // 60} 分钟抓取+推送一轮（只推新增；停机漏掉的开机后自动补发）。Ctrl+C 退出。")
+    if args.wait_first_round:
+        wait_for_next_round()
     while True:
         status = "ok"
         try:
@@ -566,7 +607,7 @@ def main() -> int:
             log(f"本轮出错（下轮继续）: {e}")
         try:
             # school-radar 不在线时快一点重试，别干等一个完整周期
-            time.sleep(60 if status == "radar_down" else interval)
+            wait_for_next_round(status == "radar_down")
         except KeyboardInterrupt:
             log("收到退出信号，bye")
             return 0

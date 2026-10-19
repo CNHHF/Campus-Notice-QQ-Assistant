@@ -19,3 +19,10 @@ weixin-bridge/bridge-config.json
 *.db-*
 *.log
 .env
+
+# Local WeChat delivery health
+bridge/push-health.json
+
+bridge/crawl-schedule.json
+bridge/*.schedule.tmp
+bridge/*.policy.tmp

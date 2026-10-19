@@ -6,23 +6,18 @@ import time
 import urllib.request
 import webbrowser
 from pathlib import Path
+from first_run import notify_first_run
 
 base = Path(__file__).resolve().parent
 url = 'http://127.0.0.1:8788'
 
 if sys.platform == 'win32':
-    result = subprocess.run(['powershell.exe','-NoProfile','-File',str(base/'start-services.ps1')],
-        capture_output=True,text=True,timeout=65,creationflags=subprocess.CREATE_NO_WINDOW)
-    if result.returncode:
-        print('Service startup failed. Check qq-service/runtime/startup-status.json')
-    else:
-        try:
-            status = json.loads(result.stdout.strip())
-            print('WeChat gateway:', 'running' if status['gateway_ready'] else 'not ready')
-            print('WeChat bridge:', 'running' if status['bridge_pid'] else 'not running')
-            print('QQ client:', 'ready' if status['qq_ready'] else 'waiting for login')
-        except ValueError:
-            print('Service startup status unavailable.')
+    runtime = base/'runtime'
+    runtime.mkdir(exist_ok=True)
+    with (runtime/'startup.log').open('ab') as log:
+        subprocess.Popen(['powershell.exe','-NoProfile','-File',str(base/'start-services.ps1')],
+            stdout=log,stderr=log,creationflags=subprocess.CREATE_NO_WINDOW)
+    print('Starting services in background. See the live status on the admin page.')
 
 
 def alive():
@@ -48,4 +43,5 @@ if not alive():
     else:
         raise SystemExit('Startup timeout. See qq-service/runtime/process.log')
 config = json.loads((base / 'runtime/config.json').read_text(encoding='utf-8'))
+notify_first_run(base / 'runtime')
 webbrowser.open(url + '/#token=' + config['admin_token'])
