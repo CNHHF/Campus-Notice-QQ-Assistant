@@ -59,6 +59,8 @@ function render(){
   el('weixin-push-detail').textContent=limited?`${wp.reason}。最近失败：${wp.updated_at||'未知'}；当时待发 ${wp.pending||0} 条。可先给 bot 发消息刷新会话，仍失败需检查平台限制；启动修复不能解除发送限制。`:'';
   if(s.push_preferences?.weixin_push_paused)status('weixin-push-status','自动推送已暂停',false);
   if(s.push_preferences?.qq_push_paused)el('metric-pending').textContent+=' · 自动推送已暂停';
+  const crawl=s.crawl_status;
+  el('overview-schedule').textContent=`${s.radar.count.toLocaleString()} 条公开通知已归档 · 每 ${s.crawl_minutes} 分钟采集${crawl?.next_run?' · 下次预计 '+crawl.next_run.replace('T',' '):''}`;
   renderCrawlStatus(s.crawl_status);
   renderWeixin(s.weixin);
   const list=el('activity-list');list.replaceChildren();list.className=s.activity.length?'':'empty';
@@ -160,7 +162,7 @@ setInterval(async()=>{if(state&&['starting','waiting','scanned','verifying'].inc
 el('services-start').addEventListener('click',async()=>{el('services-start').disabled=true;try{const r=await api('/api/services/start',{});await refresh();toast(r.message);}catch(e){toast(e.message,true);}finally{el('services-start').disabled=!!state?.services?.starting;}});
 setInterval(async()=>{if(state?.services?.starting&&!el('shell').hidden){try{await refresh();}catch{}}},3000);
 
-function invalidateManual(){manualBatch=null;el('manual-cancel').hidden=true;el('manual-send').hidden=true;el('manual-items').replaceChildren();el('manual-summary').textContent='选择已更新，请重新预览后发送。';}
+function invalidateManual(){manualBatch=null;el('manual-cancel').hidden=true;el('manual-send').hidden=true;el('manual-items').replaceChildren();el('manual-summary').textContent='选择已更新，请重新预览后发送。';updateComposeSteps();}
 function renderManualTargets(){
   const c=state.config, sig=JSON.stringify([c.groups,c.private_users]);
   if(sig===manualTargetSignature)return;manualTargetSignature=sig;
@@ -175,7 +177,7 @@ function renderManualTargets(){
 }
 const manualLabels={wait_resend:'已发送过，等待你确认是否重发',prepared:'待确认',queued:'等待发送',sending:'发送中',sent:'发送成功',failed:'发送失败',uncertain:'结果不确定，不重发',skipped:'已发送、待发送、结果不确定或权限变化，已跳过',cancelled:'任务中断，请重新预览'};
 function renderManualBatch(result){
-  manualBatch=result;el('manual-details').querySelector('summary').textContent=`展开 / 收起推送明细（${result.items.length} 条）`;const box=el('manual-items');box.replaceChildren();
+  manualBatch=result;updateComposeSteps();el('manual-details').querySelector('summary').textContent=`展开 / 收起推送明细（${result.items.length} 条）`;const box=el('manual-items');box.replaceChildren();
   for(const item of result.items){const row=node('article',undefined,'search-result');row.append(node('strong',(item.target_kind==='group'?'群 ':'私人 QQ ')+item.target_id+' · '+(manualLabels[item.status]||item.status)),node('p',item.message));box.append(row);}
   const duplicates=result.items.filter(x=>x.status==='wait_resend').length;
   const ready=result.items.filter(x=>['prepared','wait_resend'].includes(x.status)).length;
@@ -190,7 +192,7 @@ el('manual-send').addEventListener('click',async()=>{if(!manualBatch)return;el('
 setInterval(async()=>{if(manualBatch?.active&&!el('shell').hidden){const batch=manualBatch.batch;try{const result=await api('/api/manual/status?batch='+encodeURIComponent(batch));if(manualBatch?.batch===batch)renderManualBatch(result);}catch(e){toast(e.message,true);}}},2000);
 
 el('manual-toggle').addEventListener('click',()=>{const closed=!el('manual-body').hidden;el('manual-body').hidden=closed;el('manual-toggle').textContent=closed?'展开设置':'收起设置';el('manual-toggle').setAttribute('aria-expanded',String(!closed));});
-el('notices').append(el('manual-panel').querySelector('.manual-actions'));
+el('manual-panel').append(el('manual-panel').querySelector('.manual-actions'));
 el('manual-details').open=false;
 
 el('search-toggle').addEventListener('click',()=>{const closed=!el('search-body').hidden;el('search-body').hidden=closed;el('search-toggle').textContent=closed?'展开筛选与结果':'收起筛选与结果';el('search-toggle').setAttribute('aria-expanded',String(!closed));});
@@ -244,3 +246,34 @@ function renderCrawlStatus(c){if(!c)return;el('crawl-state-text').textContent=c.
 el('push-preferences-form').addEventListener('submit',async e=>{e.preventDefault();try{const value={exclude_keywords:el('push-exclude-keywords').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),categories:[...el('push-categories').selectedOptions].map(o=>o.value),exclude_categories:[...el('push-exclude-categories').selectedOptions].map(o=>o.value),max_age_days:Number(el('push-max-age').value),weixin_push_paused:el('wx-push-paused').checked,qq_push_paused:el('qq-push-paused').checked};await api('/api/push/preferences',value);await refresh();toast('推送规则已保存；暂停不影响抓取与查询');}catch(err){toast(err.message,true);}});
 
 el('manual-cancel').addEventListener('click',async()=>{if(!manualBatch)return;try{renderManualBatch(await api('/api/manual/cancel',{batch:manualBatch.batch}));}catch(e){toast(e.message,true);}});
+
+// Settings panels are presentation-only: switching never saves or clears form values.
+function showSettingPane(name,focus=false){
+ const tabs=[...document.querySelectorAll('[data-setting-tab]')];
+ if(!tabs.some(button=>button.dataset.settingTab===name))return;
+ for(const button of tabs){const active=button.dataset.settingTab===name;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;if(active&&focus)button.focus();}
+ for(const panel of document.querySelectorAll('.settings-pane'))panel.hidden=panel.id!=='pane-'+name;
+ try{sessionStorage.setItem('campus-setting-pane',name);}catch{}
+}
+for(const button of document.querySelectorAll('[data-setting-tab]')){
+ button.addEventListener('click',()=>showSettingPane(button.dataset.settingTab));
+ button.addEventListener('keydown',event=>{
+  const tabs=[...document.querySelectorAll('[data-setting-tab]')];let index=tabs.indexOf(button);
+  if(event.key==='ArrowRight')index=(index+1)%tabs.length;
+  else if(event.key==='ArrowLeft')index=(index+tabs.length-1)%tabs.length;
+  else if(event.key==='Home')index=0;
+  else if(event.key==='End')index=tabs.length-1;
+  else return;
+  event.preventDefault();showSettingPane(tabs[index].dataset.settingTab,true);
+ });
+}
+try{showSettingPane(sessionStorage.getItem('campus-setting-pane')||'automation');}catch{}
+
+function updateComposeSteps(){
+ const step=manualBatch?2:manualSelection.size?1:0;
+ document.querySelectorAll('.compose-steps li').forEach((item,index)=>{
+  item.classList.toggle('current',index===step);
+  item.classList.toggle('complete',index<step);
+  if(index===step)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');
+ });
+}

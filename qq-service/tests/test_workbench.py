@@ -13,7 +13,7 @@ class WorkbenchTests(unittest.TestCase):
             html=workbench.render_workbench().decode()
         self.assertIn("fetch('/workbench/api/items",html)
         self.assertIn("fetch('/workbench/api/profile",html)
-        self.assertIn('--accent:#b64d2c',html)
+        self.assertIn('--accent:#486d77',html)
 
     def test_service_control_routes_are_not_forwarded(self):
         for path,method in [('/api/refresh','GET'),('/api/quit','POST'),('/api/profile','GET')]:
