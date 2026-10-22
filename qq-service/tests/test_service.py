@@ -60,6 +60,41 @@ class ServiceTests(unittest.TestCase):
         with self.service.connect() as db:
             return {r['title']:r['status'] for r in db.execute('SELECT title,status FROM deliveries')}
 
+    def test_competition_query_filters_stages_before_limit(self):
+        for i in range(8):
+            self.insert('seminar'+str(i), '思政教师集体备课研讨会通知', category='contest')
+        self.insert('training', '关于开展大学生竞赛管理系统培训的通知', category='teachrun')
+        self.insert('results', '大学生市场调查竞赛获奖名单公示', category='gongshi')
+        self.insert('sports', '第一届游泳锦标赛圆满结束', category='contest')
+        self.insert('entry', '关于举办大学生市场调查与分析竞赛选拔赛的通知', category='teachrun')
+        plan = {'scope':True,'keywords':['竞赛'],'days':30,'category':'contest'}
+        with patch.object(self.service, 'query_plan', return_value=plan):
+            answer = self.service.answer({'key':'isolated','text':'帮我找最近的竞赛通知'})
+        self.assertIn('市场调查与分析竞赛选拔赛', answer)
+        for excluded in ('研讨会', '系统培训', '获奖名单', '游泳'):
+            self.assertNotIn(excluded, answer)
+        self.assertIn('是否仍可报名请核对原文', answer)
+        for question, expected, excluded in (
+            ('找竞赛系统培训通知','系统培训','获奖名单'),
+            ('找竞赛获奖名单','获奖名单','系统培训'),
+        ):
+            with patch.object(self.service,'query_plan',return_value=plan):
+                answer=self.service.answer({'key':'isolated','text':question})
+            self.assertIn(expected,answer)
+            self.assertNotIn(excluded,answer)
+
+    def test_named_competition_and_explicit_sports_queries(self):
+        self.insert('math','关于数学建模竞赛报名的通知',category='teachrun')
+        self.insert('market','关于市场调查竞赛报名的通知',category='contest')
+        self.insert('swim','关于举办游泳比赛的通知',category='contest')
+        for question, keywords, expected, excluded in (
+            ('查通知 数学建模竞赛',['数学建模竞赛'],'数学建模','市场调查'),
+            ('查通知 游泳比赛',['游泳比赛'],'游泳比赛','数学建模'),
+        ):
+            answer=self.service.answer({'key':'isolated','text':question})
+            self.assertIn(expected,answer)
+            self.assertNotIn(excluded,answer)
+
     def test_only_real_at_enters_queue(self):
         cfg = self.service.snapshot()
         for parts in (
@@ -381,10 +416,22 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request('/api/manual/send',{}, {'Content-Type':'application/json'})[0],401)
         self.assertEqual(self.request('/api/manual/status?batch=unknown')[0],401)
         self.assertEqual(self.request('/api/weixin/qr')[0],401)
+        self.assertEqual(self.request('/api/qq-console/state')[0],401)
+        self.assertEqual(self.request('/api/qq-console/qr')[0],401)
+        self.assertEqual(self.request('/api/qq-console/qr',{}, {'Content-Type':'application/json'})[0],401)
         self.assertEqual(self.request('/api/weixin/start',{}, {'Content-Type':'application/json'})[0],401)
         h={'Authorization':'Bearer '+self.service.snapshot()['admin_token']}
         status,result=self.request('/api/state',headers=h)
         self.assertEqual(status,200);self.assertFalse(result['radar']['ready'])
+
+    def test_qq_console_requires_admin_and_origin_before_login_actions(self):
+        with patch.object(self.service.qq_console,'prepare_qr',return_value={'qr_ready':True}) as prepare:
+            headers={'Content-Type':'application/json','Authorization':'Bearer '+self.service.snapshot()['admin_token'],'Origin':'https://foreign.example'}
+            self.assertEqual(self.request('/api/qq-console/qr',{},headers)[0],403)
+            prepare.assert_not_called()
+            del headers['Origin']
+            self.assertEqual(self.request('/api/qq-console/qr',{},headers),(200,{'qr_ready':True}))
+            prepare.assert_called_once_with()
 
     def test_start_services_requires_admin_and_same_origin(self):
         with patch.object(self.service, 'start_services', return_value={'message':'started'}) as start:

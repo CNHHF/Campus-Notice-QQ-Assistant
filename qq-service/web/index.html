@@ -6,18 +6,19 @@
   <title>
    校园通知 · 管理中心
   </title>
+  <link href="/favicon.ico" rel="icon" type="image/x-icon"/>
   <link href="/style.css" rel="stylesheet"/>
   <script defer="" src="/app.js">
   </script>
  </head>
- <body>
+ <body class="inbox-mode">
   <a class="skip-link" href="#main-content">
    跳到页面内容
   </a>
   <div class="login" id="login">
    <form class="login-card" id="login-form">
     <div class="brand-mark">
-     东
+     <img src="/school-logo.png" alt="浙江财经大学东方学院校徽" width="40" height="40"/>
     </div>
     <span class="eyebrow">
      CAMPUS NOTICE
@@ -46,7 +47,7 @@
    <aside id="main-sidebar">
     <a class="brand" href="/">
      <span class="brand-mark">
-      东
+      <img src="/school-logo.png" alt="浙江财经大学东方学院校徽" width="40" height="40"/>
      </span>
      <span>
       东方 · 通知
@@ -59,7 +60,18 @@
      工作区
     </div>
     <nav>
-     <button aria-label="运行总览" class="nav active" data-view="overview" title="运行总览">
+     <button aria-label="通知收件箱" class="nav active" data-view="notices" title="通知收件箱">
+      <svg aria-hidden="true" class="nav-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24">
+       <circle cx="10" cy="10" r="6">
+       </circle>
+       <path d="m15 15 6 6M7 10h6">
+       </path>
+      </svg>
+      <span>
+       通知收件箱
+      </span>
+     </button>
+     <button aria-label="投递中心" class="nav" data-view="overview" title="投递中心">
       <svg aria-hidden="true" class="nav-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24">
        <rect height="7" rx="1" width="7" x="3" y="3">
        </rect>
@@ -71,16 +83,7 @@
        </rect>
       </svg>
       <span>
-       运行总览
-      </span>
-     </button>
-     <button aria-label="校园通知工作台" class="nav" data-view="workbench" title="校园通知工作台">
-      <svg aria-hidden="true" class="nav-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24">
-       <path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h5">
-       </path>
-      </svg>
-      <span>
-       校园通知工作台
+       投递中心
       </span>
      </button>
      <button aria-label="访问与群管理" class="nav" data-view="access" title="访问与群管理">
@@ -92,17 +95,6 @@
       </svg>
       <span>
        访问与群管理
-      </span>
-     </button>
-     <button aria-label="通知查询" class="nav" data-view="notices" title="通知查询">
-      <svg aria-hidden="true" class="nav-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24">
-       <circle cx="10" cy="10" r="6">
-       </circle>
-       <path d="m15 15 6 6M7 10h6">
-       </path>
-      </svg>
-      <span>
-       通知查询
       </span>
      </button>
      <button aria-label="接入设置" class="nav" data-view="connect" title="接入设置">
@@ -119,7 +111,49 @@
       </span>
      </button>
     </nav>
+    <section aria-label="通知分组" id="inbox-navigation">
+     <div class="inbox-folders">
+      <button class="folder active" data-folder="all">
+       <span>
+        全部通知
+       </span>
+       <b id="folder-all-count">
+        —
+       </b>
+      </button>
+      <button class="folder" data-folder="unread">
+       <span>
+        未读通知
+       </span>
+       <b id="folder-unread-count">
+        —
+       </b>
+      </button>
+      <button class="folder" data-folder="starred">
+       <span>
+        我的收藏
+       </span>
+       <b id="folder-starred-count">
+        —
+       </b>
+      </button>
+     </div>
+     <div class="folder-heading">
+      按主题浏览
+     </div>
+     <div id="inbox-categories">
+     </div>
+    </section>
     <div class="sidebar-bottom">
+     <button aria-label="校园通知工作台" class="text-button legacy-entry" data-view="workbench" title="校园通知工作台">
+      <svg aria-hidden="true" class="nav-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24">
+       <path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h5">
+       </path>
+      </svg>
+      <span>
+       高级工作台
+      </span>
+     </button>
      <span class="dot">
      </span>
      微信 + QQ 双渠道
@@ -139,7 +173,7 @@
         校园信息 / 管理工作站
        </span>
        <h1 id="view-title">
-        运行总览
+        通知收件箱
        </h1>
       </div>
      </div>
@@ -147,13 +181,16 @@
       <span class="chip">
        本机部署
       </span>
+      <span class="inbox-health" id="inbox-health">
+       连接中
+      </span>
       <span id="clock">
       </span>
      </div>
     </header>
     <div class="toast" hidden="" id="notice" role="status">
     </div>
-    <section class="view" id="overview">
+    <section class="view" hidden="" id="overview">
      <div class="overview-intro">
       <div>
        <span class="section-index">
@@ -469,73 +506,70 @@
       </button>
      </div>
     </section>
-    <section class="view" hidden="" id="notices">
-     <div class="section-intro">
-      <h2>
-       查询，然后发送
-      </h2>
-      <p>
-       从本地通知库筛选内容，选择接收对象，预览后确认发送。
-      </p>
-     </div>
-     <div class="notice-layout">
-      <article class="panel" id="search-panel">
-       <div class="panel-heading">
-        <h2>
-         通知列表
-        </h2>
-        <button aria-controls="search-body" aria-expanded="true" class="secondary" id="search-toggle">
-         收起筛选与结果
-        </button>
-       </div>
+    <section class="view" id="notices">
+     <div class="inbox-workspace">
+      <article class="inbox-list-pane" id="search-panel">
        <div id="search-body">
-        <form class="search-form" id="search-form">
-         <input aria-label="通知关键词" id="search-input" placeholder="输入关键词，例如：奖学金、补考、毕业论文"/>
-         <button class="primary">
-          搜索通知
-         </button>
-        </form>
-        <div class="search-filters">
-         <label>
-          学院 / 部门
-          <select id="search-source">
-           <option value="">
-            全部学院 / 部门
-           </option>
-          </select>
-         </label>
-         <label>
-          发布开始日期
-          <span class="chinese-date">
-           <input aria-label="发布开始日期" autocomplete="off" id="search-start" placeholder="年 / 月 / 日" type="text"/>
-           <span class="calendar-picker">
-            <span aria-hidden="true">
-             ▦
-            </span>
-            <input aria-label="选择开始日期" id="search-start-picker" type="date"/>
-           </span>
-          </span>
-         </label>
-         <label>
-          发布结束日期
-          <span class="chinese-date">
-           <input aria-label="发布结束日期" autocomplete="off" id="search-end" placeholder="年 / 月 / 日" type="text"/>
-           <span class="calendar-picker">
-            <span aria-hidden="true">
-             ▦
-            </span>
-            <input aria-label="选择结束日期" id="search-end-picker" type="date"/>
-           </span>
-          </span>
-         </label>
-         <button class="secondary" id="search-reset" type="button">
-          重置筛选
+        <div class="inbox-list-caption">
+         <select id="inbox-folder-mobile" aria-label="通知分组"><option value="all">全部通知</option><option value="unread">未读通知</option><option value="starred">我的收藏</option></select><strong id="inbox-folder-title">
+          全部通知
+         </strong>
+         <span id="inbox-result-count">
+          正在读取
+         </span>
+         <button aria-expanded="false" class="text-button" id="search-toggle" type="button">
+          展开筛选
          </button>
         </div>
-        <p class="muted">
-         日期按通知发布日期筛选；指定日期范围时，不包含日期未标明的通知。跨页保留勾选。
-        </p>
-        <div class="form-actions">
+        <form class="inbox-search" id="search-form">
+         <input aria-label="通知关键词" id="search-input" placeholder="搜索通知标题、关键词"/>
+         <button class="primary">
+          搜索
+         </button>
+        </form>
+        <details class="inbox-advanced" id="inbox-advanced">
+         <summary>
+          学院、部门与日期
+         </summary>
+         <div class="search-filters"><label>通知主题<select id="inbox-category-mobile" aria-label="通知主题"><option value="">全部主题</option></select></label>
+          <label>
+           学院 / 部门
+           <select id="search-source">
+            <option value="">
+             全部学院 / 部门
+            </option>
+           </select>
+          </label>
+          <label>
+           发布开始日期
+           <span class="chinese-date">
+            <input aria-label="发布开始日期" autocomplete="off" id="search-start" placeholder="年 / 月 / 日" type="text"/>
+            <span class="calendar-picker">
+             <span aria-hidden="true">
+              ▦
+             </span>
+             <input aria-label="选择开始日期" id="search-start-picker" type="date"/>
+            </span>
+           </span>
+          </label>
+          <label>
+           发布结束日期
+           <span class="chinese-date">
+            <input aria-label="发布结束日期" autocomplete="off" id="search-end" placeholder="年 / 月 / 日" type="text"/>
+            <span class="calendar-picker">
+             <span aria-hidden="true">
+              ▦
+             </span>
+             <input aria-label="选择结束日期" id="search-end-picker" type="date"/>
+            </span>
+           </span>
+          </label>
+          <button class="secondary" id="search-reset" type="button">
+           重置筛选
+          </button>
+         </div>
+        </details>
+        <div class="inbox-list-selection">
          <button class="secondary" id="search-select-all" type="button">
           全选本页
          </button>
@@ -545,98 +579,156 @@
          <button class="secondary" id="search-invert" type="button">
           反选本页
          </button>
-         <span class="muted">
-          仅操作当前页，其他页的勾选保留；每批最多推送50条通知。
-         </span>
         </div>
-        <div class="empty" id="search-results">
+        <div class="inbox-list" id="search-results">
          输入关键词开始查询，或留空查看最新通知。
         </div>
-        <div class="form-actions">
+        <div class="inbox-pagination">
          <button class="secondary" disabled="" id="search-prev">
           上一页
          </button>
-         <span class="muted" id="search-page">
-          第 1 页
-         </span>
+         <span id="search-page" aria-live="polite"></span>
          <button class="secondary" disabled="" id="search-next">
           下一页
          </button>
         </div>
        </div>
       </article>
-      <div class="compose-column">
-       <article class="panel" id="manual-panel">
-        <div class="panel-heading">
-         <h2>
-          推送清单
-         </h2>
-         <span class="chip" id="manual-count">
-          已选 0 条通知
+      <article aria-label="通知详情" class="inbox-reader" id="inbox-reader">
+       <div class="reader-toolbar">
+        <button class="secondary" id="reader-back" type="button">
+         返回列表
+        </button>
+        <span class="muted" id="reader-position">
+         阅读区
+        </span>
+        <div class="reader-tools">
+         <button class="secondary" hidden="" id="reader-star" type="button">
+          收藏
+         </button>
+         <button class="text-button" hidden="" id="reader-unread" type="button">
+          标为未读
+         </button>
+         <button class="primary" hidden="" id="reader-pick" type="button">
+          加入推送清单
+         </button>
+        </div>
+       </div>
+       <div class="reader-content" id="reader-content">
+        <div class="reader-empty">
+         <span aria-hidden="true" class="reader-empty-icon">
+          ☷
          </span>
-         <button aria-controls="manual-body" aria-expanded="true" class="secondary" id="manual-toggle">
-          收起设置
-         </button>
-        </div>
-        <ol aria-label="手动推送步骤" class="compose-steps">
-         <li class="current">
-          选择通知
-         </li>
-         <li>
-          选择对象
-         </li>
-         <li>
-          预览确认
-         </li>
-        </ol>
-        <div id="manual-body">
-         <p class="muted">
-          勾选上方查询结果，再选择接收群或私人 QQ。每次最多50条通知、10个接收对象。
+         <h2>
+          从左侧选一条通知
+         </h2>
+         <p>
+          在这里阅读正文，查看来源与附件信息。
          </p>
-         <div class="two-cols" id="manual-targets">
-         </div>
+         <small>
+          所有内容来自本地通知库，附学校原文链接。
+         </small>
         </div>
-        <div class="manual-actions">
-         <button class="primary" id="manual-preview">
-          预览推送
-         </button>
-         <button class="secondary" id="manual-clear">
-          清空通知选择
-         </button>
-         <button class="secondary" hidden="" id="manual-cancel">
-          取消发送
-         </button>
-         <button class="primary" hidden="" id="manual-send">
-          确认发送以上通知
-         </button>
-        </div>
-        <div class="info-note" id="manual-summary" role="status">
-         先选择通知和接收对象，再预览内容。已发通知须单独确认重发；结果不确定的消息不会自动重发。
-        </div>
-        <details id="manual-details">
-         <summary>
-          展开 / 收起推送明细
-         </summary>
-         <div id="manual-items">
-         </div>
-        </details>
-       </article>
-       <article class="panel examples">
-        <h2>
-         在 QQ 中这样问
-        </h2>
-        <code>
-         @校园通知助手 最近有哪些奖学金通知？
-        </code>
-        <code>
-         @校园通知助手 第2条详情
-        </code>
-        <p>
-         每次群内提问都需要 @。也支持“查通知 奖学金”，无需模型即可检索。
-        </p>
-       </article>
-      </div>
+       </div>
+      </article>
      </div>
+     <div class="inbox-selection-bar" id="inbox-selection-bar">
+      <span id="inbox-selection-count">
+       未选择通知
+      </span>
+      <button class="primary" id="open-compose" type="button">
+       推送清单
+       <b id="compose-count">
+        0
+       </b>
+      </button>
+     </div>
+     <section aria-label="通知推送清单" aria-modal="true" class="compose-drawer" hidden="" id="compose-drawer" role="dialog">
+      <div class="drawer-heading">
+       <div>
+        <span class="eyebrow">
+         确认后才会发送
+        </span>
+        <h2>
+         推送清单
+        </h2>
+       </div>
+       <button class="secondary" id="close-compose" type="button">
+        关闭
+       </button>
+      </div>
+      <article class="panel" id="manual-panel">
+       <div class="panel-heading">
+        <h2>
+         选择接收对象
+        </h2>
+        <span class="chip" id="manual-count">
+         已选 0 条通知
+        </span>
+        <button aria-controls="manual-body" aria-expanded="true" class="secondary" id="manual-toggle">
+         收起设置
+        </button>
+       </div>
+       <ol aria-label="手动推送步骤" class="compose-steps">
+        <li class="current">
+         选择通知
+        </li>
+        <li>
+         选择对象
+        </li>
+        <li>
+         预览确认
+        </li>
+       </ol>
+       <div id="manual-body">
+        <p class="muted">
+         勾选上方查询结果，再选择接收群或私人 QQ。每次最多50条通知、10个接收对象。
+        </p>
+        <div class="two-cols" id="manual-targets">
+        </div>
+       </div>
+       <div class="manual-actions">
+        <button class="primary" id="manual-preview">
+         预览推送
+        </button>
+        <button class="secondary" id="manual-clear">
+         清空通知选择
+        </button>
+        <button class="secondary" hidden="" id="manual-cancel">
+         取消发送
+        </button>
+        <button class="primary" hidden="" id="manual-send">
+         确认发送以上通知
+        </button>
+       </div>
+       <div class="info-note" id="manual-summary" role="status">
+        先选择通知和接收对象，再预览内容。已发通知须单独确认重发；结果不确定的消息不会自动重发。
+       </div>
+       <details id="manual-details">
+        <summary>
+         展开 / 收起推送明细
+        </summary>
+        <div id="manual-items">
+        </div>
+       </details>
+      </article>
+      <article class="panel examples">
+       <h2>
+        在 QQ 中这样问
+       </h2>
+       <code>
+        @校园通知助手 最近有哪些奖学金通知？
+       </code>
+       <code>
+        @校园通知助手 第2条详情
+       </code>
+       <p>
+        每次群内提问都需要 @。也支持“查通知 奖学金”，无需模型即可检索。
+       </p>
+      </article>
+     </section>
+     <button aria-label="关闭推送清单" class="compose-backdrop" hidden="" id="compose-backdrop" type="button">
+     </button>
     </section>
     <section class="view" hidden="" id="connect">
      <div class="settings-heading">
@@ -646,6 +738,9 @@
       <p>
        设置采集计划、消息规则与机器人连接。
       </p>
+      <button class="text-button" data-view="workbench" type="button">
+       打开高级工作台：个人档案、分类校正与完整归档
+      </button>
      </div>
      <div aria-label="设置分区" class="settings-tabs" role="tablist">
       <button aria-controls="pane-automation" aria-selected="true" data-setting-tab="automation" id="tab-automation" role="tab" type="button">
@@ -738,6 +833,26 @@
       </article>
      </div>
      <div aria-labelledby="tab-qq" class="settings-pane" hidden="" id="pane-qq" role="tabpanel">
+      <article class="panel qq-console-panel">
+       <div class="panel-head"><div><p class="eyebrow">QQ 客户端</p><h2>登录与连接</h2></div><span id="qq-console-badge" class="badge">待检查</span></div>
+       <p id="qq-console-message" aria-live="polite">在这里检查登录、扫码和消息通道，无需另输 NapCat Token。</p>
+       <div class="qq-console-layout">
+        <div>
+         <dl class="qq-diagnostics" id="qq-diagnostics"></dl>
+         <p class="info-note" id="qq-queue-note">登录成功后，待发通知会按现有规则自动推送；结果不确定的消息不会自动重发。</p>
+         <div class="form-actions">
+          <button type="button" class="secondary" id="qq-login-qr">刷新二维码</button>
+          <button type="button" class="secondary" id="qq-console-refresh">刷新状态</button>
+          <button type="button" class="secondary" id="qq-console-start">启动 / 修复服务</button>
+         </div>
+        </div>
+        <div class="qq-login-box" id="qq-login-box" hidden="">
+         <img id="qq-login-image" alt="QQ 机器人登录二维码" width="220" height="220"/>
+         <p>用机器人 QQ 扫码，在手机上确认。</p>
+         <small>未登录时自动显示，过期后自动更新。</small>
+        </div>
+       </div>
+      </article>
       <div class="section-intro">
        <h2>
         连接你的 QQ 机器人

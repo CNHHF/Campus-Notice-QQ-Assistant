@@ -26,3 +26,6 @@ bridge/push-health.json
 bridge/crawl-schedule.json
 bridge/*.schedule.tmp
 bridge/*.policy.tmp
+
+desktop/artifacts/
+desktop/tools/

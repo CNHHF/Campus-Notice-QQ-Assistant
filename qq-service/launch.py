@@ -44,4 +44,5 @@ if not alive():
         raise SystemExit('Startup timeout. See qq-service/runtime/process.log')
 config = json.loads((base / 'runtime/config.json').read_text(encoding='utf-8'))
 notify_first_run(base / 'runtime')
-webbrowser.open(url + '/#token=' + config['admin_token'])
+if '--no-browser' not in sys.argv:
+    webbrowser.open(url + '/#token=' + config['admin_token'])

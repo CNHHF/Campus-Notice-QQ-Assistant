@@ -1,11 +1,12 @@
 'use strict';
 let state = null;
 let changing = false;
+const inbox={folder:'all',category:'',items:[],loaded:false,initialized:false,selected:null,detailSequence:0,returnFocus:null};
 const manualSelection=new Set();
 let manualBatch=null, manualTargetSignature='';
 let searchOffset=0, searchQuery=null, searchBusy=false, filtersLoaded=false;
 const el = id => document.getElementById(id);
-const titles = {overview:'运行总览',workbench:'校园通知工作台',access:'访问与群管理',notices:'通知查询',connect:'接入设置'};
+const titles = {overview:'投递中心',workbench:'校园通知工作台',access:'访问与群管理',notices:'通知收件箱',connect:'接入设置'};
 
 async function api(path, data) {
   const response = await fetch(path, {method: data === undefined ? 'GET':'POST', credentials:'same-origin',headers:data === undefined ? {} : {'Content-Type':'application/json'},body:data === undefined ? undefined : JSON.stringify(data)});
@@ -21,9 +22,11 @@ function showLogin(){el('login').hidden=false;el('shell').hidden=true;}
 function view(name){
   if(!Object.hasOwn(titles,name))return;
   const workbench=name==='workbench';
+  document.body.classList.toggle('inbox-mode',name==='notices');
+  if(name!=='notices')closeCompose(false);
   document.body.classList.toggle('workbench-mode',workbench);
   if(!workbench)setWorkbenchFocus(false);
-  if(name==='notices')loadSearchFilters();
+  if(name==='notices'){loadSearchFilters();if(state&&!inbox.loaded)runSearch();}
   for(const section of document.querySelectorAll('.view'))section.hidden=section.id!==name;
   for(const button of document.querySelectorAll('.nav')){
     const active=button.dataset.view===name;
@@ -32,6 +35,7 @@ function view(name){
   }
   el('view-title').textContent=titles[name];
   if(workbench&&!el('radar-frame').getAttribute('src'))el('radar-frame').src='/workbench/';
+  if(name==='connect'&&!el('pane-qq').hidden)queueMicrotask(refreshQQConsole);
 }
 
 function node(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;}
@@ -43,6 +47,7 @@ function render(){
   el('services-start').textContent=s.services?.starting?'正在启动…':'一键启动 / 修复';
   el('services-message').textContent=s.services?.error || (s.services?.starting?'正在补齐服务，微信网关首次启动可能需要几分钟…':s.services?.weixin_gateway&&s.services?.weixin_bridge&&s.connection.connected?(s.services?.weixin_push?.status==='restricted'?'服务进程已运行，但微信发送受限；请查看下方投递状态。':'微信与 QQ 服务已就绪。'):'点击一键启动可补齐服务；QQ 登录失效时仍需本人登录。');
   el('metric-notices').textContent=s.radar.count.toLocaleString();
+  el('inbox-health').textContent='本地档案 · '+s.radar.count.toLocaleString()+' 条';
   el('metric-groups').textContent=c.groups.filter(g=>g.enabled).length;
   el('metric-users').textContent=c.private_users.filter(u=>u.enabled).length;
   el('metric-sent').textContent=s.stats.sent||0;
@@ -93,7 +98,7 @@ function renderLists(){
     }
   }
 }
-function settings(){renderPushPreferences();el('crawl-interval').value=state.crawl_minutes;el('crawl-schedule-current').textContent=` 当前每 ${state.crawl_minutes} 分钟一轮`; el('bot-qq').value=state.config.bot_qq;el('onebot-url').value=state.config.onebot_url;el('model').value=state.config.model;}
+function settings(){if(!inbox.initialized){inbox.initialized=true;view('notices');}renderPushPreferences();el('crawl-interval').value=state.crawl_minutes;el('crawl-schedule-current').textContent=` 当前每 ${state.crawl_minutes} 分钟一轮`; el('bot-qq').value=state.config.bot_qq;el('onebot-url').value=state.config.onebot_url;el('model').value=state.config.model;}
 function renderWeixin(w){if(!w)return;if(state)state.weixin=w;const active=['starting','waiting','scanned','verifying'].includes(w.status);el('weixin-status').textContent=w.status==='connected'?'授权完成':w.configured?'已有本地授权':'尚未授权';el('weixin-message').textContent=w.message;el('weixin-start').disabled=active;el('weixin-cancel').hidden=!active;el('weixin-code-form').hidden=!w.code_required;el('weixin-qr').hidden=!w.qr_ready;if(w.qr_ready)el('weixin-qr').src='/api/weixin/qr?t='+Date.now();else el('weixin-qr').removeAttribute('src');}
 async function refresh(){
   const initial=state===null;
@@ -132,22 +137,80 @@ document.querySelectorAll('.probe').forEach(b=>b.addEventListener('click',async(
 el('export-config').addEventListener('click',async()=>{try{const config=await api('/api/onebot-config');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(config,null,2)],{type:'application/json'}));a.download='onebot-campus-config.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);toast('配置示例已下载，请只交给本机 QQ 客户端');}catch(e){toast(e.message,true);}});
 async function runSearch(offset=0){
  if(searchBusy)return;
- if(offset===0){try{searchQuery={q:el('search-input').value,source:el('search-source').value,start:readChineseDate('search-start'),end:readChineseDate('search-end')};}catch(e){toast(e.message,true);return;}}
- searchBusy=true;el('search-form').querySelector('button').disabled=true;
- const box=el('search-results');box.className='empty';box.textContent='正在查询…';
+ if(offset===0){try{searchQuery={q:el('search-input').value,source:el('search-source').value,start:readChineseDate('search-start'),end:readChineseDate('search-end')};}catch(error){toast(error.message,true);return;}}
+ searchBusy=true;el('search-form').querySelector('button').disabled=true;el('search-results').setAttribute('aria-busy','true');
+ const box=el('search-results');box.className='inbox-list';box.textContent='正在读取通知…';
  try{
-  const result=await api('/api/search?'+new URLSearchParams({...searchQuery,offset}));
-  searchOffset=offset;box.replaceChildren();box.className=result.items.length?'':'empty';
-  if(!result.items.length)box.textContent='当前筛选条件下没有通知。';
-  for(const it of result.items){const row=node('article',undefined,'search-result'),link=node('a',it.title);link.href=safeLink(it.url);link.target='_blank';link.rel='noopener noreferrer';const pick=node('input');pick.type='checkbox';pick.value=it.url;pick.checked=manualSelection.has(it.url);pick.setAttribute('aria-label','选择通知：'+it.title);pick.addEventListener('change',()=>{if(pick.checked)manualSelection.add(it.url);else manualSelection.delete(it.url);el('manual-count').textContent=`已选 ${manualSelection.size} 条通知`;invalidateManual();});row.append(pick,link,node('div',`${it.pub_date||'日期未标明'} · ${it.category_name||'未分类'} · ${it.source_name||''}`,'result-meta'));if(it.digest)row.append(node('p',it.digest.slice(0,180)));box.append(row);}
-  el('search-prev').disabled=offset===0;el('search-next').disabled=!result.has_more;el('search-page').textContent=`第 ${offset/20+1} 页`;
- }catch(err){box.textContent=err.message;el('search-prev').disabled=true;el('search-next').disabled=true;}
- finally{searchBusy=false;el('search-form').querySelector('button').disabled=false;}
+  const result=await api('/api/inbox?'+new URLSearchParams({...searchQuery,folder:inbox.folder,category:inbox.category,offset}));
+  inbox.items=result.items;inbox.loaded=true;searchOffset=offset;
+  renderInboxList();
+  for(const name of ['all','unread','starred'])el('folder-'+name+'-count').textContent=result.counts[name].toLocaleString();
+  el('inbox-result-count').textContent=result.total.toLocaleString()+' 条';
+  renderInboxCategories(result.categories);
+  el('search-prev').disabled=offset===0;el('search-next').disabled=!result.has_more;el('search-page').textContent=`${offset/20+1} / ${Math.max(1,Math.ceil(result.total/20))}`;
+ }catch(error){box.replaceChildren(node('p',error.message,'empty'));el('search-prev').disabled=true;el('search-next').disabled=true;}
+ finally{searchBusy=false;el('search-results').removeAttribute('aria-busy');el('search-form').querySelector('button').disabled=false;}
+}
+function renderInboxList(){
+ const box=el('search-results');box.replaceChildren();
+ if(!inbox.items.length){box.append(node('div','这里暂时没有通知，试试其他筛选条件。','empty'));return;}
+ for(const item of inbox.items){
+  const row=node('article',undefined,'inbox-item');row.classList.toggle('unread',!item.read);row.classList.toggle('selected',inbox.selected?.url===item.url);
+  const check=node('input');check.type='checkbox';check.value=item.url;check.checked=manualSelection.has(item.url);check.setAttribute('aria-label','选择通知：'+item.title);
+  check.addEventListener('change',()=>{if(check.checked)manualSelection.add(item.url);else manualSelection.delete(item.url);invalidateManual();});
+  const open=node('button',undefined,'notice-open');open.type='button';open.append(node('span',item.source_name||'公开通知','notice-source'),node('strong',item.title),node('span',item.digest||'点击阅读通知正文','notice-excerpt'));
+  open.setAttribute('aria-label','阅读通知：'+item.title);open.addEventListener('click',()=>openNotice(item.url));
+  const date=node('time',(item.pub_date||item.first_seen||'').slice(0,10),'notice-date');
+  const star=node('button',item.starred?'★':'☆','notice-star');star.type='button';star.setAttribute('aria-label',(item.starred?'取消收藏：':'收藏通知：')+item.title);star.setAttribute('aria-pressed',String(item.starred));star.addEventListener('click',async()=>{star.disabled=true;try{await setInboxFlag(item.url,{starred:!item.starred});}catch(error){toast(error.message,true);}finally{star.disabled=false;}});
+  const category=node('span',item.category_name||'其他信息','notice-category');category.dataset.category=item.category||'other';
+  row.append(check,open,date,star,category);box.append(row);
+ }
+}
+function renderInboxCategories(categories){
+ const box=el('inbox-categories');box.replaceChildren();
+ fillOptions(el('inbox-category-mobile'),{'':'全部主题',...Object.fromEntries(categories.map(item=>[item.id,item.name]))},[inbox.category]);
+ const all=node('button','全部主题','category-filter');all.type='button';all.classList.toggle('active',!inbox.category);all.addEventListener('click',()=>setInboxCategory(''));box.append(all);
+ for(const category of categories){const button=node('button',undefined,'category-filter');button.type='button';button.dataset.category=category.id;button.classList.toggle('active',inbox.category===category.id);button.append(node('span',category.name),node('b',String(category.count)));button.addEventListener('click',()=>setInboxCategory(category.id));box.append(button);}
+}
+function setInboxCategory(category){if(searchBusy)return;inbox.category=category;updateInboxCaption();runSearch();}
+function updateInboxCaption(){el('inbox-folder-mobile').value=inbox.folder;const label={all:'全部通知',unread:'未读通知',starred:'我的收藏'}[inbox.folder];el('inbox-folder-title').textContent=label;for(const button of document.querySelectorAll('[data-folder]')){const active=button.dataset.folder===inbox.folder;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));}}
+async function openNotice(url){
+ const sequence=++inbox.detailSequence;inbox.selected=null;for(const id of ['reader-star','reader-unread','reader-pick'])el(id).hidden=true;document.body.classList.add('reader-open');el('reader-content').replaceChildren(node('div','正在加载正文…','reader-loading'));
+ try{
+  const item=await api('/api/inbox/detail?'+new URLSearchParams({url}));if(sequence!==inbox.detailSequence)return;
+  inbox.selected=item;renderReader();renderInboxList();
+  if(!item.read)await setInboxFlag(url,{read:true});
+ }catch(error){if(sequence===inbox.detailSequence)el('reader-content').replaceChildren(node('div',error.message,'reader-loading'));}
+}
+function renderReader(){
+ const item=inbox.selected;if(!item)return;
+ const box=el('reader-content');box.replaceChildren();
+ const meta=node('div',undefined,'reader-meta');meta.append(node('span',item.category_name||'公开通知','reader-category'),node('time',item.pub_date||'日期未标明'));
+ box.append(meta,node('h2',item.title,'reader-title'));
+ const source=node('div',undefined,'reader-source');source.append(node('span',item.source_name||'学校公开网站'));
+ const link=node('a','查看学校原文 ↗');link.href=safeLink(item.url);link.target='_blank';link.rel='noopener noreferrer';source.append(link);box.append(source);
+ if(item.deadline)box.append(node('p','截止日期：'+item.deadline,'reader-deadline'));
+ const body=node('div',item.body||item.digest||'本地库暂未收录正文，请打开学校原文查看。','reader-body');box.append(body);
+ if(item.files){const files=node('section',undefined,'reader-attachments');files.append(node('h3','附件信息'),node('p',item.files),node('small','附件内容请在学校原文中查看，部分附件需要本人登录或验证码。'));box.append(files);}
+ const note=node('p','内容来自学校公开通知。以原文最新说明为准。','reader-footnote');box.append(note);
+ for(const id of ['reader-star','reader-unread','reader-pick'])el(id).hidden=false;
+ el('reader-star').textContent=item.starred?'已收藏':'收藏';el('reader-star').setAttribute('aria-pressed',String(item.starred));
+ el('reader-unread').textContent=item.read?'标为未读':'标为已读';el('reader-position').textContent='通知正文';
+ el('reader-pick').textContent=manualSelection.has(item.url)?'已加入推送清单':'加入推送清单';
+}
+async function setInboxFlag(url,change){
+ const result=await api('/api/inbox/flags',{url,...change});
+ const item=inbox.items.find(item=>item.url===url);const was=item?{read:item.read,starred:item.starred}:inbox.selected?.url===url?{read:inbox.selected.read,starred:inbox.selected.starred}:null;
+ if(item)Object.assign(item,result);
+ if(inbox.selected?.url===url){Object.assign(inbox.selected,result);renderReader();}
+ if(was){for(const [field,folder,inverse] of [['read','unread',true],['starred','starred',false]]){if(was[field]!==result[field]){const element=el('folder-'+folder+'-count');const value=Number(element.textContent.replaceAll(',',''));if(Number.isFinite(value))element.textContent=Math.max(0,value+(result[field]?(inverse?-1:1):(inverse?1:-1))).toLocaleString();}}}
+ if((inbox.folder==='starred'&&!result.starred)||(inbox.folder==='unread'&&result.read)){inbox.items=inbox.items.filter(item=>item.url!==url);}
+ renderInboxList();
 }
 el('search-form').addEventListener('submit',e=>{e.preventDefault();runSearch();});
 el('search-prev').addEventListener('click',()=>runSearch(Math.max(0,searchOffset-20)));
 el('search-next').addEventListener('click',()=>runSearch(searchOffset+20));
-el('search-reset').addEventListener('click',()=>{for(const id of ['search-input','search-source','search-start','search-end'])el(id).value='';runSearch();});
+el('search-reset').addEventListener('click',()=>{for(const id of ['search-input','search-source','search-start','search-end'])el(id).value='';inbox.category='';runSearch();});
 async function loadSearchFilters(){if(filtersLoaded)return;try{const r=await api('/api/search/filters');for(const source of r.sources){const o=node('option',source);o.value=source;el('search-source').append(o);}filtersLoaded=true;}catch(e){toast(e.message,true);}}
 el('logout').addEventListener('click',async()=>{await api('/api/logout',{});showLogin();});
 el('reload-workbench').addEventListener('click',()=>{el('radar-frame').src='/workbench/';});
@@ -162,7 +225,7 @@ setInterval(async()=>{if(state&&['starting','waiting','scanned','verifying'].inc
 el('services-start').addEventListener('click',async()=>{el('services-start').disabled=true;try{const r=await api('/api/services/start',{});await refresh();toast(r.message);}catch(e){toast(e.message,true);}finally{el('services-start').disabled=!!state?.services?.starting;}});
 setInterval(async()=>{if(state?.services?.starting&&!el('shell').hidden){try{await refresh();}catch{}}},3000);
 
-function invalidateManual(){manualBatch=null;el('manual-cancel').hidden=true;el('manual-send').hidden=true;el('manual-items').replaceChildren();el('manual-summary').textContent='选择已更新，请重新预览后发送。';updateComposeSteps();}
+function invalidateManual(){updateInboxSelection();manualBatch=null;el('manual-cancel').hidden=true;el('manual-send').hidden=true;el('manual-items').replaceChildren();el('manual-summary').textContent='选择已更新，请重新预览后发送。';updateComposeSteps();}
 function renderManualTargets(){
   const c=state.config, sig=JSON.stringify([c.groups,c.private_users]);
   if(sig===manualTargetSignature)return;manualTargetSignature=sig;
@@ -183,6 +246,7 @@ function renderManualBatch(result){
   const ready=result.items.filter(x=>['prepared','wait_resend'].includes(x.status)).length;
   el('manual-send').textContent=duplicates?'确认重新发送':'确认发送';
   el('manual-cancel').hidden=!ready;
+  updateInboxSelection();
   el('manual-send').hidden=!ready;el('manual-send').disabled=false;
   el('manual-summary').textContent=result.active?'正在发送，请勿关闭服务。结果不确定的消息不会自动重发。':duplicates?`这些信息已经发送过，是否重新发送？其中 ${duplicates} 条为重复消息，本次共 ${ready} 条；请核对明细后确认，或取消。`:ready?`将发送 ${ready} 条消息，请核对接收对象和内容后确认。`:`任务状态：成功 ${result.items.filter(x=>x.status==='sent').length}，失败 ${result.items.filter(x=>x.status==='failed').length}，结果不确定 ${result.items.filter(x=>x.status==='uncertain').length}，跳过 ${result.items.filter(x=>x.status==='skipped').length}。`;
 }
@@ -195,7 +259,7 @@ el('manual-toggle').addEventListener('click',()=>{const closed=!el('manual-body'
 el('manual-panel').append(el('manual-panel').querySelector('.manual-actions'));
 el('manual-details').open=false;
 
-el('search-toggle').addEventListener('click',()=>{const closed=!el('search-body').hidden;el('search-body').hidden=closed;el('search-toggle').textContent=closed?'展开筛选与结果':'收起筛选与结果';el('search-toggle').setAttribute('aria-expanded',String(!closed));});
+el('search-toggle').addEventListener('click',()=>{const open=!el('inbox-advanced').open;el('inbox-advanced').open=open;el('search-toggle').textContent=open?'收起筛选':'展开筛选';el('search-toggle').setAttribute('aria-expanded',String(open));});
 
 function selectSearchPage(invert=false,clear=false){
   const picks=[...el('search-results').querySelectorAll('input[type=checkbox]')];
@@ -254,6 +318,7 @@ function showSettingPane(name,focus=false){
  for(const button of tabs){const active=button.dataset.settingTab===name;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;if(active&&focus)button.focus();}
  for(const panel of document.querySelectorAll('.settings-pane'))panel.hidden=panel.id!=='pane-'+name;
  try{sessionStorage.setItem('campus-setting-pane',name);}catch{}
+ if(name==='qq')queueMicrotask(refreshQQConsole);
 }
 for(const button of document.querySelectorAll('[data-setting-tab]')){
  button.addEventListener('click',()=>showSettingPane(button.dataset.settingTab));
@@ -277,3 +342,47 @@ function updateComposeSteps(){
   if(index===step)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');
  });
 }
+
+function updateInboxSelection(){
+ const count=manualSelection.size;el('manual-count').textContent=`已选 ${count} 条通知`;el('inbox-selection-count').textContent=count?`已选 ${count} 条，跨页选择保留`:'勾选通知后可批量推送';el('compose-count').textContent=String(count);if(inbox.selected)renderReader();
+}
+function openCompose(){inbox.returnFocus=document.activeElement;el('compose-drawer').hidden=false;el('compose-backdrop').hidden=false;document.body.classList.add('compose-open');el('close-compose').focus();}
+function closeCompose(restore=true){if(!el('compose-drawer'))return;const wasOpen=!el('compose-drawer').hidden;el('compose-drawer').hidden=true;el('compose-backdrop').hidden=true;document.body.classList.remove('compose-open');if(wasOpen&&restore&&inbox.returnFocus?.isConnected)inbox.returnFocus.focus();}
+el('open-compose').addEventListener('click',openCompose);el('close-compose').addEventListener('click',()=>closeCompose());el('compose-backdrop').addEventListener('click',()=>closeCompose());
+for(const button of document.querySelectorAll('[data-folder]'))button.addEventListener('click',()=>{if(searchBusy)return;inbox.folder=button.dataset.folder;updateInboxCaption();runSearch();});
+el('reader-star').addEventListener('click',async()=>{if(!inbox.selected)return;try{await setInboxFlag(inbox.selected.url,{starred:!inbox.selected.starred});}catch(error){toast(error.message,true);}});
+el('reader-unread').addEventListener('click',async()=>{if(!inbox.selected)return;try{await setInboxFlag(inbox.selected.url,{read:!inbox.selected.read});}catch(error){toast(error.message,true);}});
+el('reader-pick').addEventListener('click',()=>{if(!inbox.selected)return;manualSelection.add(inbox.selected.url);invalidateManual();renderInboxList();});
+el('reader-back').addEventListener('click',()=>document.body.classList.remove('reader-open'));
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeCompose();document.body.classList.remove('reader-open');}if(event.key==='Tab'&&!el('compose-drawer').hidden){const focusable=[...el('compose-drawer').querySelectorAll('button,input,select,textarea,summary,a[href]')].filter(node=>!node.disabled&&node.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
+
+el('inbox-folder-mobile').addEventListener('change',event=>{inbox.folder=event.target.value;updateInboxCaption();runSearch();});
+el('inbox-category-mobile').addEventListener('change',event=>setInboxCategory(event.target.value));
+
+let qqConsoleBusy=false,qqQrRevision='',qqLoggedIn=false;
+function showQQCode(value){
+ el('qq-login-box').hidden=!value.qr_ready;
+ if(!value.qr_ready){qqQrRevision='';el('qq-login-image').removeAttribute('src');return;}
+ if(qqQrRevision!==value.qr_revision){qqQrRevision=value.qr_revision;el('qq-login-image').src='/api/qq-console/qr?t='+encodeURIComponent(qqQrRevision);}
+}
+async function refreshQQConsole(){
+ if(qqConsoleBusy||!state)return;qqConsoleBusy=true;el('qq-console-refresh').disabled=true;
+ try{
+  const value=await api('/api/qq-console/state');
+  el('qq-console-badge').textContent=value.logged_in?'已登录':value.available?'等待登录':'未连接';
+  el('qq-console-message').textContent=value.message;
+  qqLoggedIn=!!value.logged_in;el('qq-login-qr').hidden=qqLoggedIn;
+  const rows=[['QQ 登录',value.logged_in?'已登录':value.available?'等待扫码 / 手机确认':'客户端未就绪',value.logged_in],['消息发送接口',value.connection?.connected?'已连接 · QQ '+value.connection.qq:value.logged_in?(value.connection?.message||'未连接'):'登录后检查',!!value.connection?.connected],['发送通道配置',value.outgoing_configured?'匹配本项目':'尚未就绪或不匹配',!!value.outgoing_configured],['消息回传配置',value.incoming_configured?'匹配本项目':'尚未就绪或不匹配',!!value.incoming_configured],['本次运行最近收信',state.last_event?.replace('T',' ')||'暂无记录',!!state.last_event]];
+  const box=el('qq-diagnostics');box.replaceChildren();for(const [label,text,good] of rows)box.append(node('dt',label),node('dd',text,good?'ok':'warning'));
+  const queued=state.stats.queued||0;el('qq-queue-note').textContent=`待发 ${queued} 条 · ${state.push_preferences?.qq_push_paused?'QQ 自动推送已暂停，可在采集与推送中恢复。':'登录成功后会按现有规则自动发送。'}结果不确定的消息不会自动重发。`;
+  if(value.available&&!value.logged_in){
+   if(value.qr_ready)showQQCode(value);
+   else{showQQCode({qr_ready:false});const code=await api('/api/qq-console/qr',{});showQQCode(code);el('qq-console-message').textContent=code.message;}
+  }else showQQCode({qr_ready:false});
+ }catch(error){el('qq-console-message').textContent=error.message;}
+ finally{qqConsoleBusy=false;el('qq-console-refresh').disabled=false;}
+}
+el('qq-console-refresh').addEventListener('click',refreshQQConsole);
+el('qq-login-qr').addEventListener('click',async()=>{if(qqConsoleBusy)return;qqConsoleBusy=true;el('qq-login-qr').disabled=true;try{const value=await api('/api/qq-console/qr',{refresh:true});el('qq-console-message').textContent=value.message;showQQCode(value);}catch(error){showQQCode({qr_ready:false});toast(error.message,true);}finally{qqConsoleBusy=false;el('qq-login-qr').disabled=qqLoggedIn;}});
+el('qq-console-start').addEventListener('click',async()=>{el('qq-console-start').disabled=true;try{await api('/api/services/start',{});toast('已请求启动 / 修复，请稍后刷新状态。');await refreshQQConsole();}catch(error){toast(error.message,true);}finally{el('qq-console-start').disabled=false;}});
+setInterval(()=>{if(!el('connect').hidden&&!el('pane-qq').hidden&&!el('shell').hidden&&!document.hidden)refreshQQConsole();},10000);
