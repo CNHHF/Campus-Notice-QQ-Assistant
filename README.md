@@ -1,165 +1,118 @@
-# Campus-Notice-WeChat-Push
+# 东方知讯 · 校园通知 QQ 助手
 
-> 新增：QQ 群通知与私聊查询、统一管理中心、微信扫码入口及统一启动。群里仅真实 @ 机器人后回复，私聊按名单授权；自动群通知独立启停。管理页：http://127.0.0.1:8788 。详见 [管理中心与 QQ 接入](qq-service/README.md)。
+**QQ 自动推送、AI 通知检索与手动选择分发，配套 Windows 桌面工作台。**
 
-## 双通道部署
+东方知讯整理学校公开网站的通知，让师生在常用的 QQ 群中接收新增信息、用自然语言找通知，让管理员在分发前选择内容、核对对象。每条结果保留学校原文链接，微信作为补充通道保留。
 
-本仓库仅包含自研代码。Python 3.12+；学校抓取器、OpenClaw 微信插件及 OneBot QQ 客户端请分别从官方渠道安装，不包含任何登录信息或第三方可执行程序。
+仓库名称：`Campus-Notice-QQ-Assistant`。作者：**HHF**。
 
-1. 将 school-radar 放到仓库根目录的 `school-radar-pkg/school-radar/`，或设置 `CAMPUS_DEPLOY_ROOT` 指向已有部署目录。`RADAR_DB` 可指定只读数据库路径。
-2. 配置 `bridge/bridge-config.json`（已有部署则使用 `weixin-bridge/`）；抓取间隔至少60分钟。先完成 OpenClaw 网关安装与微信登录。
-3. 安装 OneBot v11 QQ 客户端，例如 [NapCat 官方安装文档](https://napneko.github.io/guide/boot/Shell)，本人扫码。第三方组件遵守各自许可，勿连同 QQ 登录数据上传。
-4. 双击仓库根目录 `start-all.bat`，会启动微信网关、学校工作台、微信桥和管理中心，QQ 客户端按本机已有启动入口拉起；初次登录仍需本人完成。已有进程会跳过。
-5. 在接入设置填写机器人 QQ，按页面配置 OneBot HTTP 服务端与事件上报（array 格式、相同 Token、仅本机），再添加私聊名单与测试群。
-6. 新群建立当前通知基线，不补发旧通知。第一版 QQ 仅查询和推送，不支持登录附件，也不共享原微信用户的教务 Cookie。
+## QQ 自动推送
 
-测试：`python -m unittest discover -s qq-service/tests -v`；测试用临时数据库与模拟 QQ，不发送真实消息或调用真实模型。
+- 检查本地通知库的新增内容，按每个群订阅的学院、部门来源和分类分发。
+- 消息包含标题、发布日期、原文链接；全局排除规则继续生效。
+- 新启用群先建立已有通知基线，避免一次性补发历史通知。
+- 按群记录投递状态、处理重复事件；发送结果不确定时不自动重发。
+- 自动推送不调用大模型。默认抓取间隔60分钟，前端可调10-180分钟；QQ每分钟检查本地库，不代表每分钟抓取学校网站。
 
+## AI 通知检索
 
-把 [Campus-Notice-Classifier（school-radar）](https://github.com/MAIBAI-W/Campus-Notice-Classifier)
-抓到的校园通知 **实时推送到你的微信**（微信官方 OpenClaw 通道），并支持在微信里
-**查历史通知、按需重新抓取、索要附件直接发文件**。
+群聊中**每次真实 @ 机器人**后提问，例如：
 
-```
-school-radar（22 个通知站点抓取+分类）
-        │  SQLite radar.db
-        ▼
-weixin-bridge（本仓库，每 60 分钟对比一次，只推新增）
-        │  openclaw message send
-        ▼
-OpenClaw + 微信官方 openclaw-weixin 插件 ──▶ 你的微信
+```text
+@机器人 帮我找一下最近的竞赛通知
+@机器人 第1条详情
 ```
 
-## 功能
+DeepSeek 将自然语言转换为受约束的检索参数，程序从本地通知库返回标题、日期和链接。竞赛查询区分报名组织、系统培训及获奖结果；最近发布不代表仍可报名，截止时间请核对原文。
 
-- **只推新增**：每 60 分钟抓一轮，只推这轮新出现的通知，旧的绝不重发
-- **停机补发**：关机/睡眠期间漏的通知，下次开机自动抓回并**全部**发给你
-  （≥5 条时先发一条说明，再逐条发，每条间隔约 1 秒）
-- **查历史**：在微信里直接对 bot 说「帮我找一下之前的补考通知」
-- **要附件**：对 bot 说「把这条通知的报名表发我」，bot 下载后直接发文件给你
-- **随时重抓**：对 bot 说「重新抓一下官网最新通知」
-- 纯 Python 标准库实现（bridge / notice-tool 零第三方依赖），限速友好（60 分钟/轮）
-- **隐私**：教务处等站点要登录时，由使用者**本人提供自己的** Cookie（Cookie 绑定本人校园账号，
-  等于本人登录会话，勿用他人、勿共享）；Cookie 只存本机 `bridge-config.json`（已在 .gitignore，不进 git）
+普通群消息、@全体、引用或仅输入机器人名字不会触发查询。私聊需要名单授权；短期上下文按群和提问者隔离。与通知无关的内容统一提示“请说出您要查询的通知”。
 
-## 组成
+`查通知 奖学金`、`最新通知`、编号详情等命令式查询无需模型。自然语言提问会发送到配置的 DeepSeek API，模型不替代学校原文。
 
-| 文件 | 作用 |
+## 手动选择分发
+
+在桌面收件箱按关键词、来源和日期筛选，勾选通知，选择获准接收的群或私人 QQ，**预览后确认发送**。
+
+- 支持分页、跨页保留选择、全选/反选/取消选择，单批最多50条通知、10个对象。
+- 已发送通知再次分发需要明确确认；在途或结果不确定的消息不能绕过保护重发。
+- 手动推送不调用模型、不触发额外抓取。
+
+## 统一工作台
+
+| 模块 | 功能 |
 |---|---|
-| `bridge/bridge.py` | 推送桥：定时抓取 → 对比 radar.db → 只推新增 → 调 openclaw 发微信 |
-| `bridge/notice-tool.py` | 按需工具：`search/show/files/fetch/refresh/set-cookie` 查历史、下载附件、触发重抓（支持 SSO Cookie 与下载验证码 `--code`） |
-| `bridge/bridge-config.example.json` | 配置模板（复制为 `bridge-config.json` 后填写） |
-| `bridge/start-bridge.bat` | 一键启动推送桥 |
-| `skill/school-notice/SKILL.md` | OpenClaw 技能：教会 bot 查历史/发附件（装到 `~/.openclaw/workspace/skills/`） |
-| `autostart/` | 启动方式模板：一键启动 `start-all.bat`；开机自启 / 桌面快捷方式 二选一 |
-| `patches/` | OpenClaw Windows 兼容补丁（bot 不回消息时看这里） |
+| 通知收件箱 | 本地正文、学校原文、主题/来源/日期筛选、已读和收藏 |
+| 访问管理 | 群名单、私聊名单、每群订阅、群自动推送设置 |
+| 接入设置 | QQ登录二维码、连接与通道诊断、DeepSeek设置及微信授权 |
+| 运行管理 | 一键启动/修复、抓取状态、微信与QQ自动推送独立暂停 |
+| Windows程序 | WebView2内嵌前端、单实例、托盘、高DPI适配 |
 
-## 快速开始
+管理页默认仅本机访问：`http://127.0.0.1:8788`。首次部署随机生成管理口令，正常重启保持不变。扫码与手机授权由账号持有人完成。
 
-### 0. 前置
+## 实现结构
 
-- Windows + Python 3.10+
-- [school-radar v1.0.0](https://github.com/MAIBAI-W/Campus-Notice-Classifier/releases/tag/v1.0.0)
-  解压到 `deploy-work\school-radar-pkg\`，双击 `school-radar.exe`，工作台 `http://127.0.0.1:8765`
-- [OpenClaw](https://docs.openclaw.ai/)（`npm install -g openclaw@latest --allow-scripts=openclaw`）
-  + 微信官方插件（`npx -y @tencent-weixin/openclaw-weixin-cli@latest install`），
-  扫码登录微信后 `openclaw channels status` 能看到你的会话
-
-### 1. 配置推送桥
-
-```powershell
-cd bridge
-python bridge.py --setup     # 部署向导：问几个问题，生成 bridge-config.json
-python bridge.py --targets   # 查看你的微信会话 ID，填进 target（格式 xxx@im.wechat）
+```text
+学校公开网站
+    ↓ school-radar（独立部署的采集组件）
+SQLite 通知库
+    ├─ QQ 服务：新增检测 / 分群订阅 / 投递状态 → OneBot v11 → QQ
+    ├─ DeepSeek 参数解析 → 本地库检索 → QQ 查询回复
+    ├─ 管理前端 / Windows WebView2 → 阅读与手动预览分发
+    └─ 微信桥 / OpenClaw → 微信补充通道
 ```
 
-向导会问：radar_db / openclaw_bin / target / 推送间隔，
-以及**「招聘、宣讲会、专业介绍这类信息要不要也自动推送？」**——
-选 N（默认）则这类信息不自动推送（需要时在微信里问 bot 照样能查）；
-选 y 则全部都推。之后可在 bridge-config.json 里改 `exclude_categories` / `exclude_keywords` 调整。
+前端使用HTML、CSS、JavaScript；管理服务使用Python标准库与SQLite；桌面外壳使用C# WinForms、WebView2。已有 `bridge.py` 继续承担共享抓取调度，QQ服务不另建学校抓取周期。
 
-也可以手动配置：复制 `bridge-config.example.json` 为 `bridge-config.json` 后按需填写。
+## 部署入口
 
-| 字段 | 说明 |
+本仓库发布自研源码，不包含第三方可执行程序、账号、密钥、数据库或学校通知附件。目前面向 **Windows已有组件部署**，不是空白电脑的一键离线整合包。
+
+1. 准备Python 3.12+，将 [school-radar](https://github.com/MAIBAI-W/Campus-Notice-Classifier) 放在 `school-radar-pkg/school-radar/`。可用 `CAMPUS_DEPLOY_ROOT` 指定已有部署，`RADAR_DB` 指定数据库路径。
+2. 按示例设置共享抓取桥配置（仓库使用 `bridge/`，兼容已有 `weixin-bridge/`）。当前统一启动流程仍保留微信网关/桥的检查，完整启动依赖请查看接入文档。
+3. 独立安装兼容OneBot v11的QQ客户端，如 [NapCat](https://napneko.github.io/guide/boot/Shell)，由本人登录机器人账号。
+4. 使用根目录 `start-all.bat` 启动；在管理页设置QQ身份、OneBot HTTP与事件上报、私聊名单及群订阅。已有进程会跳过。
+5. 如需程序窗口，按 [桌面版构建说明](desktop/README.md) 构建并安装启动器；源码仓库不包含预构建安装包。
+
+详细操作：
+
+- [QQ与管理中心配置](qq-service/README.md)
+- [Windows桌面程序构建与部署](desktop/README.md)
+- [微信补充通道与附件工具](docs/wechat-setup.md)
+- [OpenClaw Windows兼容补丁](patches/openclaw-worker-task-pool-datacloneerror.md)
+
+## 目录
+
+| 路径 | 作用 |
 |---|---|
-| `radar_db` | school-radar 的 `data\radar.db` 绝对路径 |
-| `openclaw_bin` | openclaw 可执行文件完整路径（Windows 是 `%APPDATA%\npm\openclaw.cmd`） |
-| `target` | 微信会话 ID（`python bridge.py --targets` 查） |
-| `interval_minutes` | 抓取+推送间隔，默认 60 分钟（别调小，对学校站点友好） |
-| `max_push_per_round` | 单轮上限；**0 = 不限（开机补发全部）** |
-| `quiet_hours` | 免打扰时段，如 `[23, 7]`（期间只记不推） |
-| `categories` / `min_score` | 只推指定分类/相关度（空/0 = 全推） |
-| `exclude_categories` | 排除这些分类不自动推（如 `["jobstart"]` = 就业招聘类；部署向导可一键配好） |
-| `exclude_keywords` | 标题含这些关键词的不自动推（如 招聘/宣讲会/专业介绍 等，向导可一键配好） |
+| `qq-service/` | QQ查询、订阅、权限、人工分发及管理服务 |
+| `qq-service/web/` | 统一收件箱与管理前端 |
+| `qq-service/competition_search.py` | 竞赛检索的标题约束和阶段过滤 |
+| `desktop/` | Windows桌面外壳、安装脚本与边界测试 |
+| `bridge/` | 共享抓取调度、微信桥和原通知工具 |
+| `skill/school-notice/` | 微信端历史查询与附件工具技能 |
+| `autostart/`、`patches/` | 启动模板与兼容维护说明 |
 
-### 2. 测试并启动
+## 验证
 
 ```powershell
-python bridge.py --once --dry-run   # 只打印不发送
-python bridge.py --once             # 真发一条试试
-start-bridge.bat                    # 常驻：每 60 分钟抓取+推送
+python -m unittest discover -s qq-service/tests -v
+python -m unittest discover -s desktop -p test_desktop.py -v
 ```
 
-> 首轮会把库里已有通知记为基线、不推送（防刷屏），之后只推真正新增的。
+当前通过71项服务隔离测试、4项桌面测试。测试使用临时状态与模拟QQ，不发送真实消息或调用真实模型；测试通过不代表所有通知都已真实送达，也不代替实际用户试用。
 
-### 3. 让 bot 会查历史 / 发附件（可选）
+## 使用边界
 
-把 `skill/school-notice/` 复制到 `~\.openclaw\workspace\skills\school-notice\`，
-并把 SKILL.md 里的路径改成你机器上的实际路径。之后在微信里直接说需求即可。
+- 查询只覆盖已配置来源与已抓取内容；时间、办理要求、政策及附件以学校原文为准。
+- QQ当前不提供登录附件下载或个人教务身份绑定，不向群成员共享个人Cookie。
+- 微信推送受会话等条件影响；服务在线和消息送达分别诊断。
+- 当前管理端口和OneBot接口仅在本机使用。云端迁移需要重新配置访问认证、HTTPS、私网连接和运行监控。
+- Windows安装器接管现有部署，升级/卸载启动器保留原账号配置、通知库与发送记录；不默认启用开机自启。
 
-### 4. 启动方式（二选一：开机自启 / 桌面快捷方式）
+## 第三方来源与许可
 
-**A. 桌面快捷方式（手动启动，推荐）**
+自研范围包括桥接规则、QQ管理与查询服务、统一前端、桌面外壳以及投递状态/权限流程。采集与分类组件由 [Campus-Notice-Classifier](https://github.com/MAIBAI-W/Campus-Notice-Classifier) 提供，不归为本团队独立原创。
 
-1. 保持仓库目录完整，使用根目录 `start-all.bat`（已有部署可设置 `CAMPUS_DEPLOY_ROOT`）
-2. 双击 `autostart\make-desktop-shortcut.vbs`，桌面生成 `Campus-Notice-Push`
-   快捷方式（可自行改名）
-3. 以后每次开机后**双击它**即可一键启动 OpenClaw 网关 + school-radar + 推送桥。
-   已在运行的部分会自动跳过，重复双击也安全
+QQ接入使用NapCat / OneBot v11；自然语言解析使用DeepSeek；微信补充通道使用OpenClaw与腾讯微信插件；桌面使用Microsoft WebView2，安装构建使用Inno Setup。各组件保留上游许可与权利。学校标识不包含在本项目代码MIT授权内。
 
-选这个方式时，建议把 OpenClaw 网关的开机自启也停掉（避免开机自动双开网关）：
-
-```powershell
-schtasks /Change /TN "OpenClaw Gateway" /DISABLE   # 想恢复开机自启时换成 /ENABLE
-```
-
-**B. 开机自启（登录后自动运行）**
-
-- 推送桥：把 `autostart\weixin-bridge.vbs.example` 改好路径后复制到
-  `shell:startup`（Win+R 输入 `shell:startup`），改名 `.vbs`
-- school-radar：用 `autostart\make-shortcut.vbs` 在启动文件夹生成快捷方式
-- OpenClaw 网关：安装时配好的登录时计划任务，无需管
-
-> 两种方式选一种就好：都开的话，开机时会启动两遍（启动脚本会跳过已运行的，倒也不会出错）。
-
-## 常见问题
-
-**推送日志出现「找不到命令 'openclaw'」**
-Windows 上 npm 装的 openclaw 是 `openclaw.cmd` 包装脚本（没有 `.exe`），
-Python 调裸命令找不到。把 `openclaw_bin` 填成完整路径即可（bridge 每轮重读配置，不用重启）。
-
-**bot 收到消息不回复，日志报 `DataCloneError: #<Object> could not be cloned`**
-OpenClaw 2026.9.x 在 Windows 上的已知 bug（env 变量 Proxy 跨不过 worker 克隆边界），
-见 [`patches/openclaw-worker-task-pool-datacloneerror.md`](patches/openclaw-worker-task-pool-datacloneerror.md)。
-
-**收不到推送 / 日志报 `prepare failed`**
-微信 bot 平台规定 bot 只能在你发起过会话后推送（推送要带入站消息签发的 context token）。
-在微信里给 bot 随便发一条消息（如「你好」）刷新会话即可恢复。
-
-## 说明与边界
-
-- 推送内容是学校**公开**通知；对外链路 = 本机 bridge → 本机 openclaw → 微信官方后端，
-  自动推送不经过模型服务；自然语言 QQ 查询会将问题发送至所配置的 DeepSeek API
-- 抓取节奏请保持 60 分钟/轮以上，与 school-radar「一人翻 22 个页面」的限速约定一致
-- 对话模型只在你和 bot 聊天时消耗 token（如 DeepSeek），纯推送链路不走模型
-
-## 致谢
-
-- [MAIBAI-W/Campus-Notice-Classifier](https://github.com/MAIBAI-W/Campus-Notice-Classifier) —
-  校园通知抓取 + 智能分类工作台（school-radar）
-- [OpenClaw](https://docs.openclaw.ai/) 与腾讯官方 `@tencent-weixin/openclaw-weixin` 插件 —
-  微信收发通道
-
-## License
-
-[MIT](LICENSE)
+项目代码采用 [MIT License](LICENSE)。
