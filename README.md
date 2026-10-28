@@ -116,3 +116,12 @@ python -m unittest discover -s desktop -p test_desktop.py -v
 QQ接入使用NapCat / OneBot v11；自然语言解析使用DeepSeek；微信补充通道使用OpenClaw与腾讯微信插件；桌面使用Microsoft WebView2，安装构建使用Inno Setup。各组件保留上游许可与权利。学校标识不包含在本项目代码MIT授权内。
 
 项目代码采用 [MIT License](LICENSE)。
+
+
+## 采集器栏目修复（2026-10-28）
+
+`crawler/` 是基于 [School Radar v1.0.0](https://github.com/MAIBAI-W/Campus-Notice-Classifier/tree/v1.0.0) 的独立采集器修改源码，遵循其 **GPL-3.0**，保留上游作者与许可证；本仓库根 MIT 许可不覆盖该目录。管理服务与采集器通过本机 HTTP / SQLite 交互。
+
+该修复覆盖党务公示、学生工作、教学实践等公开栏目，修正相对文章链接、链接末尾空格及分块日期，保留原分类与数据库接口。完整修订记录见 [crawler/HHF-CHANGES.md](crawler/HHF-CHANGES.md)，栏目清单见 [crawler/column-coverage.json](crawler/column-coverage.json)。
+
+如需复现修复后的采集器，在独立构建环境安装 requests、beautifulsoup4、lxml 与 PyInstaller，执行 `python crawler/build_exe.py`，替换部署目录内两个 exe 及匹配的 `_internal`，保留 `data/`。先备份并在采集空闲时操作；以 `--serve-only --no-open` 启动，不额外触发抓取。第三方采集器二进制仍不进入源码仓库。

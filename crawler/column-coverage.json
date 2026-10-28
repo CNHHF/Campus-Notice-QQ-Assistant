@@ -1,0 +1,472 @@
+[
+  {
+    "key": "jrjm",
+    "name": "金融与经贸学院",
+    "kind": "学院",
+    "base": "http://jrjm.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/index/jstz.htm",
+      "/index/xstg.htm",
+      "/",
+      "/index/xydt.htm",
+      "/xygk/ywgk.htm",
+      "/jxdt/zyjs.htm",
+      "/jxdt/kcjs.htm",
+      "/jxdt/sjjx.htm",
+      "/jxdt/jxzd.htm",
+      "/kcfw/kyhd.htm",
+      "/kcfw/cxcy.htm",
+      "/kcfw/gjjl.htm",
+      "/xsgz/xgdt.htm",
+      "/xsgz/txdt.htm",
+      "/xsgz/aqjy.htm",
+      "/zsjy/zsxx.htm",
+      "/dqzj/djhd.htm",
+      "/dqzj/ghhd.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "cs",
+    "name": "财税学院",
+    "kind": "学院",
+    "base": "http://cs.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/index/jstz.htm",
+      "/index/xstz.htm",
+      "/",
+      "/index/xydt.htm",
+      "/jxdt/zyjs.htm",
+      "/jxdt/sjjx.htm",
+      "/xsgz/xgdt.htm",
+      "/xsgz/txdt.htm",
+      "/dqzj/llxx.htm",
+      "/dqzj/dwgk.htm",
+      "/dqzj/djdt.htm",
+      "/dqzj/ghhd.htm",
+      "/zsjy/zsxc.htm",
+      "/kcfw/jsky.htm",
+      "/kcfw/xsky.htm",
+      "/kcfw/cxcy.htm",
+      "/kcfw/xkjs.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "gs",
+    "name": "工商管理学院",
+    "kind": "学院",
+    "base": "http://gs.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/index/tzgg.htm",
+      "/",
+      "/jxdt.htm",
+      "/jxdt/zyjs.htm",
+      "/jxdt/kcjs.htm",
+      "/jxdt/sjjx.htm",
+      "/jxdt/jxgg.htm",
+      "/kcfw.htm",
+      "/kcfw/kxyj.htm",
+      "/kcfw/cxcy.htm",
+      "/kcfw/xkjs.htm",
+      "/xsgz.htm",
+      "/xsgz/xgdt.htm",
+      "/xsgz/txdt.htm",
+      "/zsjy.htm",
+      "/zsjy/zsxc.htm",
+      "/dqzx.htm",
+      "/dqzx/zzjs.htm",
+      "/dqzx/djhd.htm",
+      "/dqzx/ghhd.htm",
+      "/index/xykx.htm",
+      "/index/xsxx.htm",
+      "/index/jxxx.htm",
+      "/xx.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "kj",
+    "name": "会计学院",
+    "kind": "学院",
+    "base": "http://kj.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/jxjs1/tzgg.htm",
+      "/xsgz/tzgg.htm",
+      "/",
+      "/jxjs1/zyjs1.htm",
+      "/jxjs1/kcjs.htm",
+      "/jxjs1/sjjx.htm",
+      "/kcfw/kyhd.htm",
+      "/kcfw/cxcy.htm",
+      "/gjjl1/jlfx.htm",
+      "/gjjl1/ACA.htm",
+      "/xsgz/txdt.htm",
+      "/zsjy1/zsxx1.htm",
+      "/dqzj/llxx.htm",
+      "/dqzj/zzjs.htm",
+      "/dqzj/ghzj.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "info",
+    "name": "信息与人工智能学院",
+    "kind": "学院",
+    "base": "http://info.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/index/jstz.htm",
+      "/index/xstz.htm",
+      "/",
+      "/xygk/ywgk.htm",
+      "/jxdt.htm",
+      "/jxdt/kcjs.htm",
+      "/jxdt/zyjs.htm",
+      "/jxdt/sjjx.htm",
+      "/jxdt/jxgg.htm",
+      "/jxdt/xqxd.htm",
+      "/jxdt/jxzd.htm",
+      "/kcfw/kxyj.htm",
+      "/kcfw/cxcy.htm",
+      "/kcfw/xkjs.htm",
+      "/kcfw/gjjl.htm",
+      "/txgz/txdt.htm",
+      "/dqzj/zzjs.htm",
+      "/dqzj/djhd.htm",
+      "/dqzj/ghhd.htm",
+      "/dqzj/zcgd.htm",
+      "/zsjy/zsxx.htm",
+      "/zsjy/jyxx.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "fs",
+    "name": "法律与社会工作/马克思主义学院",
+    "kind": "学院",
+    "base": "https://fs.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/index/jstz.htm",
+      "/index/xstz.htm",
+      "/",
+      "/jxgl/jxap.htm",
+      "/jxgl/jxjs.htm",
+      "/jxgl/sjjx.htm",
+      "/jxgl/ksgl.htm",
+      "/kcgl/kyhd.htm",
+      "/xsgz/xgdt.htm",
+      "/xsgz/txdt.htm",
+      "/xsgz/paxy.htm",
+      "/dqgz/djgz.htm",
+      "/dqgz/ghgz.htm",
+      "/zsjy/zsgz.htm",
+      "/zsjy/jygz.htm",
+      "/xzzx/jsxz.htm",
+      "/index/tszl/shzlfzswxljz.htm",
+      "/index/tszl/kygzf.htm",
+      "/index/tszl/jxjxsl.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "rw",
+    "name": "文化传播与设计学院",
+    "kind": "学院",
+    "base": "https://rw.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/xwdt/jstz.htm",
+      "/xwdt/xstz.htm",
+      "/xwdt/ggyg.htm",
+      "/",
+      "/ssxz/jsxz.htm",
+      "/jxjs/zyjs.htm",
+      "/jxjs/kcjs.htm",
+      "/jxjs/sjjx.htm",
+      "/jxjs/jxzd.htm",
+      "/kycx/kxyj.htm",
+      "/kycx/xkjs.htm",
+      "/kycx/cxcy.htm",
+      "/dqtx/dqdt.htm",
+      "/dqtx/txxx.htm",
+      "/zsjy/zsxx.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "wy",
+    "name": "外国语学院",
+    "kind": "学院",
+    "base": "http://wy.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/index/jstz.htm",
+      "/index/xstz.htm",
+      "/",
+      "/jxdt/zyjs.htm",
+      "/jxdt/kcjs.htm",
+      "/jxdt/jwgl.htm",
+      "/jxdt/jxtz.htm",
+      "/kcfw/kxyj.htm",
+      "/kcfw/cxcy.htm",
+      "/kcfw/xkjs.htm",
+      "/kcfw/shhz.htm",
+      "/kcfw/gjjl.htm",
+      "/xsgz/jczd.htm",
+      "/xsgz/txhd.htm",
+      "/xsgz/jzhd.htm",
+      "/zsjy/zsxc.htm",
+      "/djgz/djdt.htm",
+      "/djgz/ghhd.htm",
+      "/xzzx.htm",
+      "/xzzx/xyzd.htm",
+      "/zthd/yyxxkjszxsjz.htm",
+      "/zthd/zmwlkyyjyjz.htm",
+      "/zthd/kchd.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "cyxy",
+    "name": "创业学院",
+    "kind": "学院",
+    "base": "http://cyxy.zufedfc.edu.cn",
+    "weight": 1.15,
+    "lists": [
+      "/tzgg/xytz.htm",
+      "/",
+      "/xygk/zcfg.htm",
+      "/xwzx/xwzx.htm",
+      "/scjy/cyxly.htm",
+      "/scxl/scjs.htm",
+      "/scxl/ccpp.htm",
+      "/cyfh/zckj.htm",
+      "/cyfh/fhkj.htm",
+      "/cyfh/fhjd.htm",
+      "/wzy.htm",
+      "/djgh/djgz.htm",
+      "/djgh/ghhd.htm",
+      "/djgh/ygpx.htm"
+    ],
+    "mode": "auto"
+  },
+  {
+    "key": "jxjy",
+    "name": "继续教育学院",
+    "kind": "学院",
+    "base": "https://jxjy.zufedfc.edu.cn",
+    "weight": 0.9,
+    "lists": [
+      "/index/tzgg.htm",
+      "/",
+      "/xljy.htm",
+      "/xljy/jxgl.htm",
+      "/xljy/bylw.htm",
+      "/shpx.htm",
+      "/crzs/zsxx.htm",
+      "/dwgz.htm",
+      "/index/xyxw.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "tyzx",
+    "name": "体育部",
+    "kind": "学院",
+    "base": "http://tyzx.zufedfc.edu.cn",
+    "weight": 0.85,
+    "lists": [
+      "/tzcs/tzgg.htm",
+      "/qtjs/tzgg.htm",
+      "/",
+      "/tyjx.htm",
+      "/tyjx/dekt.htm",
+      "/tyjx/ygjkp.htm",
+      "/tzcs.htm",
+      "/tzcs/zcwj.htm",
+      "/qtjs.htm",
+      "/qtjs/jsjh.htm",
+      "/djgh.htm",
+      "/djgh/dyzj.htm",
+      "/xzzx/qtjsl.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "jw",
+    "name": "教务管理部",
+    "kind": "部门",
+    "base": "http://jw.zufedfc.edu.cn",
+    "weight": 1.1,
+    "lists": [
+      "/"
+    ],
+    "mode": "dynamic"
+  },
+  {
+    "key": "xg",
+    "name": "学生工作部",
+    "kind": "部门",
+    "base": "http://xg.zufedfc.edu.cn",
+    "weight": 1.1,
+    "lists": [
+      "/",
+      "/index.jsp",
+      "/sxjy/zytz.htm",
+      "/glfw/zytz.htm",
+      "/xszz/zytz.htm",
+      "/rmwz/zbgz.htm",
+      "/body/tzgg.htm",
+      "/body/fyfc.htm",
+      "/body/hzjc.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "rlzyb",
+    "name": "人力资源部",
+    "kind": "部门",
+    "base": "http://rlzyb.zufedfc.edu.cn",
+    "weight": 1.1,
+    "lists": [
+      "/",
+      "/tzgg/zxdt.htm",
+      "/tzgg/tzgg.htm",
+      "/sdsf/xgzd.htm",
+      "/rcxq/zpgg.htm",
+      "/rcxq/lytz.htm",
+      "/zzfw.htm",
+      "/zzfw/bslc.htm",
+      "/zzfw/xzzx.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "dyb",
+    "name": "党院办/工会",
+    "kind": "部门",
+    "base": "https://dyb.zufedfc.edu.cn",
+    "weight": 0.95,
+    "lists": [
+      "/index.htm",
+      "/",
+      "/zbjs/zzgz.htm",
+      "/ghgz/zcgz.htm",
+      "/ghgz/ghtz.htm",
+      "/ghgz/ghkx.htm",
+      "/ghgz/jgxh.htm",
+      "/ghgz/sdh.htm"
+    ],
+    "mode": "auto"
+  },
+  {
+    "key": "gqt",
+    "name": "团委",
+    "kind": "部门",
+    "base": "https://gqt.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/",
+      "/tzgg.htm",
+      "/twwj.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "jfy",
+    "name": "社会合作部/经社院",
+    "kind": "部门",
+    "base": "https://jfy.zufedfc.edu.cn",
+    "weight": 0.95,
+    "lists": [
+      "/",
+      "/index/tzgg.htm",
+      "/yslcbjb1/zgqs.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "swb",
+    "name": "后勤基建部",
+    "kind": "部门",
+    "base": "https://swb.zufedfc.edu.cn",
+    "weight": 1.0,
+    "lists": [
+      "/",
+      "/bmgk1/dqzz.htm",
+      "/xwdt1/tzgg.htm",
+      "/xwdt1/zbxx.htm",
+      "/fwzn1/jtfw.htm",
+      "/lsxx/tzgg.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "abb",
+    "name": "安全保卫部",
+    "kind": "部门",
+    "base": "https://abb.zufedfc.edu.cn",
+    "weight": 0.9,
+    "lists": [
+      "/",
+      "/tzgg/tzgg.htm",
+      "/cyxz/cyxz.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "lib",
+    "name": "图书馆",
+    "kind": "部门",
+    "base": "https://lib.zufedfc.edu.cn",
+    "weight": 0.85,
+    "lists": [
+      "/",
+      "/xwdt.htm",
+      "/xwdt/tzgg.htm",
+      "/xwdt/zjd_djd_wjd.htm",
+      "/szzy.htm",
+      "/yzlb.jsp?urltype=tree.TreeTempUrl&wbtreeid=1019",
+      "/djyd.htm",
+      "/djyd/gggs.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "it",
+    "name": "信息技术部",
+    "kind": "部门",
+    "base": "https://it.zufedfc.edu.cn",
+    "weight": 0.9,
+    "lists": [
+      "/",
+      "/tzgg.htm",
+      "/djgh.htm"
+    ],
+    "mode": "static"
+  },
+  {
+    "key": "jy",
+    "name": "就业指导中心",
+    "kind": "部门",
+    "base": "http://zufedfc.jysd.com",
+    "weight": 1.35,
+    "lists": [
+      "/"
+    ],
+    "mode": "auto",
+    "item": "/(?:jobfair|teachin|campus|news)/(?:view|index)/",
+    "cols": {
+      "jobfair": "招聘会",
+      "teachin": "宣讲会",
+      "campus": "招聘公告",
+      "news": "就业通知公告"
+    }
+  }
+]

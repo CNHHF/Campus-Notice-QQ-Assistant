@@ -209,13 +209,14 @@ def fetch_new_items(db_path: str, seen_urls: set, cfg: dict) -> list[dict]:
         except (TypeError, ValueError):
             max_age = 30.0
         pd = (r["pub_date"] or "")[:10]
-        if max_age > 0 and pd:
-            try:
-                age_days = (datetime.now().date() - datetime.strptime(pd, "%Y-%m-%d").date()).days
-            except ValueError:
-                age_days = None
-            if age_days is not None and age_days > max_age:
-                continue
+        # Expanded column coverage may expose undated archives. Unknown/invalid
+        # or future dates must not become unsolicited pushes (same as QQ).
+        try:
+            age_days = (datetime.now().date() - datetime.strptime(pd, "%Y-%m-%d").date()).days
+        except ValueError:
+            continue
+        if age_days < 0 or (max_age > 0 and age_days > max_age):
+            continue
         out.append(dict(r))
     out.sort(key=lambda x: x.get("score") or 0, reverse=True)
     return out
