@@ -18,8 +18,8 @@ class CrawlScheduleTests(unittest.TestCase):
    with self.assertRaises(ValueError):write_interval(p,1)
    self.assertEqual(read_interval(p),120)
  def test_dynamic_wait_reloads_interval(self):
-  from test_weixin_limit import b
-  with patch.object(b,'load_config',side_effect=[{'interval_minutes':120},{'interval_minutes':60}]),patch.object(b,'save_json'),patch.object(b.time,'monotonic',side_effect=[0,3599,3601]),patch.object(b.time,'sleep') as sleep:
+  from test_collector import b
+  with patch.object(b,'load_config',side_effect=[{'interval_minutes':120},{'interval_minutes':60}]),patch.object(b,'save_json'),patch.object(b.time,'time',side_effect=[0,3599,3601]),patch.object(b.time,'sleep') as sleep:
    b.wait_for_next_round()
    sleep.assert_called_once_with(5)
  def test_missing_config_is_not_created(self):

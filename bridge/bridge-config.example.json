@@ -1,18 +1,24 @@
 {
   "radar_base": "http://127.0.0.1:8765",
-  "radar_db": "C:/Users/YOURNAME/deploy-work/school-radar-pkg/school-radar/data/radar.db",
-  "openclaw_bin": "C:/Users/YOURNAME/AppData/Roaming/npm/openclaw.cmd",
-  "channel": "openclaw-weixin",
-  "target": "<你的微信会话ID>@im.wechat",
   "interval_minutes": 60,
-  "min_score": 0.0,
+  "exclude_categories": [
+    "jobstart"
+  ],
+  "exclude_keywords": [
+    "招聘",
+    "招募",
+    "校园大使",
+    "宣讲会",
+    "双选会",
+    "就业指导",
+    "考公",
+    "公考",
+    "事业单位",
+    "pick你的专业"
+  ],
   "categories": [],
   "quiet_hours": [],
-  "push_history_on_start": false,
-  "max_push_per_round": 0,
+  "min_score": 0,
   "max_age_days": 30,
-  "send_interval_seconds": 1.2,
-  "exclude_categories": [],
-  "exclude_keywords": [],
-  "send_timeout_seconds": 90
+  "qq_push_paused": false
 }

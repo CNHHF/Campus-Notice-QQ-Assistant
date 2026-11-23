@@ -45,7 +45,7 @@ function render(){
   const s=state,c=s.config;
   el('services-start').disabled=!!s.services?.starting;
   el('services-start').textContent=s.services?.starting?'正在启动…':'一键启动 / 修复';
-  el('services-message').textContent=s.services?.error || (s.services?.starting?'正在补齐服务，微信网关首次启动可能需要几分钟…':s.services?.weixin_gateway&&s.services?.weixin_bridge&&s.connection.connected?(s.services?.weixin_push?.status==='restricted'?'服务进程已运行，但微信发送受限；请查看下方投递状态。':'微信与 QQ 服务已就绪。'):'点击一键启动可补齐服务；QQ 登录失效时仍需本人登录。');
+  el('services-message').textContent=s.services?.error || (s.services?.starting?'正在启动 QQ 与通知采集服务…':s.services?.collector_running&&s.connection.connected?'QQ 与采集调度已运行':'点击一键启动可补齐服务；QQ 登录失效时仍需本人登录。');
   el('metric-notices').textContent=s.radar.count.toLocaleString();
   el('inbox-health').textContent='本地档案 · '+s.radar.count.toLocaleString()+' 条';
   el('metric-groups').textContent=c.groups.filter(g=>g.enabled).length;
@@ -54,20 +54,13 @@ function render(){
   const pending=(s.stats.queued||0)+(s.stats.failed||0),uncertain=s.stats.uncertain||0;
   el('metric-pending').textContent=`待发 ${pending} 条${uncertain?` · 结果不确定 ${uncertain} 条（不重发）`:''}`;
   status('qq-status',s.connection.message,s.connection.connected);status('model-status',s.model_ready?'已配置':'未配置 · 关键词查询可用',s.model_ready);status('radar-status',s.radar.ready?'数据库可用':'数据库不可用',s.radar.ready);
-  status('weixin-gateway-status',s.services?.weixin_gateway?'端口在线':s.services?.starting?'启动中':'未启动',s.services?.weixin_gateway);status('weixin-bridge-status',s.services?.weixin_bridge?'运行中':s.services?.starting?'等待网关 / 启动中':'未启动',s.services?.weixin_bridge);
   el('last-event').textContent=s.last_event?s.last_event.replace('T',' '):'暂无';
   el('usage-text').textContent=`DeepSeek 累计输入 ${s.usage.input_tokens.toLocaleString()} token / 输出 ${s.usage.output_tokens.toLocaleString()} token；自动推送不调用模型。`;
   renderManualTargets();
-  const wp=s.services?.weixin_push||{}, limited=wp.status==='restricted';
-  status('weixin-push-status',limited?'发送受限':wp.status==='ok'?'最近发送成功':'待确认',wp.status==='ok');
-  el('weixin-push-detail').hidden=!limited;
-  el('weixin-push-detail').textContent=limited?`${wp.reason}。最近失败：${wp.updated_at||'未知'}；当时待发 ${wp.pending||0} 条。可先给 bot 发消息刷新会话，仍失败需检查平台限制；启动修复不能解除发送限制。`:'';
-  if(s.push_preferences?.weixin_push_paused)status('weixin-push-status','自动推送已暂停',false);
   if(s.push_preferences?.qq_push_paused)el('metric-pending').textContent+=' · 自动推送已暂停';
   const crawl=s.crawl_status;
   el('overview-schedule').textContent=`${s.radar.count.toLocaleString()} 条公开通知已归档 · 每 ${s.crawl_minutes} 分钟采集${crawl?.next_run?' · 下次预计 '+crawl.next_run.replace('T',' '):''}`;
   renderCrawlStatus(s.crawl_status);
-  renderWeixin(s.weixin);
   const list=el('activity-list');list.replaceChildren();list.className=s.activity.length?'':'empty';
   const kinds={configuration:'设置更新',query:'通知查询',reply_error:'回复异常',query_error:'查询异常',model_error:'模型异常',push_sent:'推送成功',push_failed:'发送失败',push_uncertain:'结果不确定',push_error:'推送异常',busy:'服务繁忙'};
   if(!s.activity.length)list.textContent='配置 QQ 接入后，运行记录将在这里显示。';
@@ -99,7 +92,6 @@ function renderLists(){
   }
 }
 function settings(){if(!inbox.initialized){inbox.initialized=true;view('notices');}renderPushPreferences();el('crawl-interval').value=state.crawl_minutes;el('crawl-schedule-current').textContent=` 当前每 ${state.crawl_minutes} 分钟一轮`; el('bot-qq').value=state.config.bot_qq;el('onebot-url').value=state.config.onebot_url;el('model').value=state.config.model;}
-function renderWeixin(w){if(!w)return;if(state)state.weixin=w;const active=['starting','waiting','scanned','verifying'].includes(w.status);el('weixin-status').textContent=w.status==='connected'?'授权完成':w.configured?'已有本地授权':'尚未授权';el('weixin-message').textContent=w.message;el('weixin-start').disabled=active;el('weixin-cancel').hidden=!active;el('weixin-code-form').hidden=!w.code_required;el('weixin-qr').hidden=!w.qr_ready;if(w.qr_ready)el('weixin-qr').src='/api/weixin/qr?t='+Date.now();else el('weixin-qr').removeAttribute('src');}
 async function refresh(){
   const initial=state===null;
   if(initial)el('shell').setAttribute('aria-busy','true');
@@ -214,12 +206,8 @@ el('search-reset').addEventListener('click',()=>{for(const id of ['search-input'
 async function loadSearchFilters(){if(filtersLoaded)return;try{const r=await api('/api/search/filters');for(const source of r.sources){const o=node('option',source);o.value=source;el('search-source').append(o);}filtersLoaded=true;}catch(e){toast(e.message,true);}}
 el('logout').addEventListener('click',async()=>{await api('/api/logout',{});showLogin();});
 el('reload-workbench').addEventListener('click',()=>{el('radar-frame').src='/workbench/';});
-el('weixin-start').addEventListener('click',async()=>{el('weixin-start').disabled=true;try{renderWeixin(await api('/api/weixin/start',{}));toast('微信扫码流程已启动，请本人确认授权');}catch(e){el('weixin-start').disabled=false;toast(e.message,true);}});
-el('weixin-cancel').addEventListener('click',async()=>{try{renderWeixin(await api('/api/weixin/cancel',{}));}catch(e){toast(e.message,true);}});
-el('weixin-code-form').addEventListener('submit',async e=>{e.preventDefault();try{const w=await api('/api/weixin/code',{code:el('weixin-code').value});el('weixin-code').value='';renderWeixin(w);}catch(err){toast(err.message,true);}});
 setInterval(()=>{el('clock').textContent=new Date().toLocaleDateString('zh-CN',{month:'long',day:'numeric'});},1000);
 setInterval(async()=>{if(!el('shell').hidden&&!changing){try{await refresh();}catch{}}},15000);
-setInterval(async()=>{if(state&&['starting','waiting','scanned','verifying'].includes(state.weixin?.status)&&!el('shell').hidden){try{await refresh();}catch{}}},3000);
 (async()=>{const fragment=new URLSearchParams(location.hash.slice(1));const token=fragment.get('token');history.replaceState(null,'',location.pathname);try{if(token)await enter(token);else{await refresh();el('login').hidden=true;el('shell').hidden=false;renderLists();settings();}}catch(e){showLogin();if(token)el('login-error').textContent=e.message;}})();
 
 el('services-start').addEventListener('click',async()=>{el('services-start').disabled=true;try{const r=await api('/api/services/start',{});await refresh();toast(r.message);}catch(e){toast(e.message,true);}finally{el('services-start').disabled=!!state?.services?.starting;}});
@@ -305,9 +293,9 @@ try{setSidebarCollapsed(localStorage.getItem('campus-sidebar-collapsed')==='true
 el('crawl-schedule-form').addEventListener('submit',async e=>{e.preventDefault();const value=Number(el('crawl-interval').value);if(!Number.isInteger(value)||value<10||value>180)return toast('请输入 10–180 分钟的整数',true);try{const result=await api('/api/crawl/schedule',{interval_minutes:value});state.crawl_minutes=result.interval_minutes;el('crawl-schedule-current').textContent=` 当前每 ${result.interval_minutes} 分钟一轮`;await refresh();toast('抓取间隔已保存，按新间隔调度');}catch(err){toast(err.message,true);}});
 
 function fillOptions(select,options,selected){select.replaceChildren();for(const [value,label] of Object.entries(options||{})){const option=node('option',label);option.value=value;option.selected=selected.includes(value);select.append(option);}}
-function renderPushPreferences(){const p=state.push_preferences||{};el('wx-push-paused').checked=!!p.weixin_push_paused;el('qq-push-paused').checked=!!p.qq_push_paused;el('push-exclude-keywords').value=(p.exclude_keywords||[]).join('\n');el('push-max-age').value=p.max_age_days||30;fillOptions(el('push-categories'),state.category_options,p.categories||[]);fillOptions(el('push-exclude-categories'),state.category_options,p.exclude_categories||[]);}
+function renderPushPreferences(){const p=state.push_preferences||{};el('qq-push-paused').checked=!!p.qq_push_paused;el('push-exclude-keywords').value=(p.exclude_keywords||[]).join('\n');el('push-max-age').value=p.max_age_days||30;fillOptions(el('push-categories'),state.category_options,p.categories||[]);fillOptions(el('push-exclude-categories'),state.category_options,p.exclude_categories||[]);}
 function renderCrawlStatus(c){if(!c)return;el('crawl-state-text').textContent=c.available?`${c.crawling?'正在抓取':'等待下轮'} · 最近抓取：${c.last_run||'暂无'} · 下次预计：${c.next_run?.replace('T',' ')||'等待调度信息'}（以服务运行及当前抓取完成情况为准）`:'通知工作台未连接，暂时无法读取抓取状态';const list=el('crawl-sites');list.replaceChildren();for(const site of c.sites||[])list.append(node('p',`${site.name}：${site.status==='ok'?'成功':site.status} · ${site.count||0} 条`));for(const name of c.unreachable||[])list.append(node('p',`${name}：未接通 / 无可用公开入口`));}
-el('push-preferences-form').addEventListener('submit',async e=>{e.preventDefault();try{const value={exclude_keywords:el('push-exclude-keywords').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),categories:[...el('push-categories').selectedOptions].map(o=>o.value),exclude_categories:[...el('push-exclude-categories').selectedOptions].map(o=>o.value),max_age_days:Number(el('push-max-age').value),weixin_push_paused:el('wx-push-paused').checked,qq_push_paused:el('qq-push-paused').checked};await api('/api/push/preferences',value);await refresh();toast('推送规则已保存；暂停不影响抓取与查询');}catch(err){toast(err.message,true);}});
+el('push-preferences-form').addEventListener('submit',async e=>{e.preventDefault();try{const value={exclude_keywords:el('push-exclude-keywords').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),categories:[...el('push-categories').selectedOptions].map(o=>o.value),exclude_categories:[...el('push-exclude-categories').selectedOptions].map(o=>o.value),max_age_days:Number(el('push-max-age').value),qq_push_paused:el('qq-push-paused').checked};await api('/api/push/preferences',value);await refresh();toast('推送规则已保存；暂停不影响抓取与查询');}catch(err){toast(err.message,true);}});
 
 el('manual-cancel').addEventListener('click',async()=>{if(!manualBatch)return;try{renderManualBatch(await api('/api/manual/cancel',{batch:manualBatch.batch}));}catch(e){toast(e.message,true);}});
 

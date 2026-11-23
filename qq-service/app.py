@@ -27,12 +27,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from push_preferences import CATEGORIES, strings, category_list, read_policy, write_policy, matches_group
 from crawl_schedule import read_interval, write_interval
-from weixin_login import WeixinLogin
+from qr_renderer import QRRenderer
 from workbench import request_local, render_workbench
 
 BASE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("CAMPUS_DEPLOY_ROOT") or BASE.parent)
-BRIDGE_DIR = ROOT / ("weixin-bridge" if (ROOT / "weixin-bridge").is_dir() else "bridge")
+BRIDGE_DIR = ROOT / 'bridge'
 ID_RE = re.compile(r"[1-9][0-9]{4,15}\Z")
 FIELDS = "url,title,digest,body,source_name,pub_date,deadline,category,category_name,audience,first_seen,score"
 
@@ -87,8 +87,7 @@ class Service:
         self.last_probe = 0
         self.startup_process = None
         self.startup_error = ""
-        self.weixin = WeixinLogin(BASE)
-        self.qq_console = QQConsole(ROOT, self.weixin)
+        self.qq_console = QQConsole(ROOT, QRRenderer())
         self.admin_sessions = {}
         self.login_attempts = collections.deque()
         path = self.data / "config.json"
@@ -203,39 +202,7 @@ class Service:
             self.record('configuration', '访问名单及接入配置已保存')
 
     def model_key(self):
-        cfg = self.snapshot()
-        key = os.environ.get('DEEPSEEK_API_KEY') or cfg.get('deepseek_key')
-        if key:
-            return key
-        # Only the DeepSeek provider's named environment reference; no copying all credentials.
-        try:
-            oc = json.loads((Path.home() / '.openclaw/openclaw.json').read_text(encoding='utf-8'))
-            provider = oc.get('models', {}).get('providers', {}).get('deepseek', {})
-            key = provider.get('apiKey')
-            if isinstance(key, str) and key and not key.startswith('${'):
-                return key
-            if isinstance(key, str) and key.startswith('${') and key.endswith('}'):
-                return os.environ.get(key[2:-1], '')
-            # Current OpenClaw stores the school bot's provider credential in its
-            # agent SQLite store. Read only the DeepSeek API-key field, without copying it.
-            agents = oc.get('agents', {}).get('list', []) or [{'id':os.environ.get('OPENCLAW_AGENT_ID', 'school-bot')}]
-            for agent in agents:
-                agent_id = agent.get('id', '')
-                if not re.fullmatch(r'[A-Za-z0-9_-]+', agent_id):
-                    continue
-                database = Path.home()/'.openclaw/agents'/agent_id/'agent/openclaw-agent.sqlite'
-                if not database.exists():
-                    continue
-                try:
-                    with closing(sqlite3.connect(f'file:{database.as_posix()}?mode=ro', uri=True)) as db:
-                        row = db.execute("SELECT json_extract(p.value, '$.key') FROM auth_profile_store, json_each(store_json, '$.profiles') p WHERE json_extract(p.value, '$.provider')='deepseek' AND json_extract(p.value, '$.type')='api_key' LIMIT 1").fetchone()
-                    if row and isinstance(row[0], str) and row[0]:
-                        return row[0]
-                except sqlite3.Error:
-                    continue
-        except (OSError, ValueError):
-            pass
-        return ''
+        return os.environ.get('DEEPSEEK_API_KEY') or self.snapshot().get('deepseek_key') or ''
 
     def public_state(self):
         if time.monotonic()-self.last_probe >= 15:
@@ -257,7 +224,7 @@ class Service:
         return {'config': cfg, 'connection': self.connection, 'radar': radar,
                 'last_event': self.last_event, 'stats': stats, 'activity': activity,
                 'usage': usage, 'model_ready': bool(self.model_key()), 'poll_seconds': 60, 'crawl_minutes': read_interval(BRIDGE_DIR/'bridge-config.json'),
-                'push_preferences':read_policy(BRIDGE_DIR/'bridge-config.json'), 'category_options':CATEGORIES, 'crawl_status':self.crawl_status(), 'weixin': self.weixin.snapshot(), 'services': self.services_status()}
+                'push_preferences':read_policy(BRIDGE_DIR/'bridge-config.json'), 'category_options':CATEGORIES, 'crawl_status':self.crawl_status(), 'services': self.services_status()}
 
     def crawl_status(self):
         # This reads the local workbench; never calls refresh or visits school sites.
@@ -302,11 +269,6 @@ class Service:
     def services_status(self):
         report = {}
         try:
-            with socket.create_connection(('127.0.0.1',18789),timeout=.3):
-                gateway = True
-        except OSError:
-            gateway = False
-        try:
             report = json.loads((self.data/'startup-status.json').read_text(encoding='utf-8'))
             pid = int(report.get('bridge_pid') or 0)
             bridge = False
@@ -331,13 +293,7 @@ class Service:
             starting = code is None
             if code not in (None, 0):
                 self.startup_error = '启动未完成，请检查本机 runtime/startup.log 后重试'
-        try:
-            bridge_dir = ROOT / ("weixin-bridge" if (ROOT / "weixin-bridge").is_dir() else "bridge")
-            health = json.loads((bridge_dir/'push-health.json').read_text(encoding='utf-8'))
-            push = {k: health.get(k) for k in ('status','updated_at','pending','reason')}
-        except (OSError, ValueError, TypeError):
-            push = {'status':'unknown'}
-        return {'weixin_push':push,'weixin_gateway':gateway,'weixin_bridge':bridge,'starting':starting,'error':self.startup_error or '；'.join(report.get('errors',[]))}
+        return {'collector_running':bridge,'starting':starting,'error':self.startup_error or '；'.join(report.get('errors',[]))}
 
     def onebot(self, action, payload):
         cfg = self.snapshot()
@@ -945,17 +901,6 @@ def make_handler(service):
                     for row in rows:
                         row.pop('body', None)
                     return self.reply(200, {'items':rows,'has_more':more})
-                if parsed.path == '/api/weixin/qr':
-                    with service.weixin.lock:
-                        svg = service.weixin.qr_svg
-                    return self.reply(200, svg, 'image/svg+xml') if svg else self.reply(404, {'error':'当前无登录二维码'})
-                if parsed.path == '/api/onebot-config':
-                    cfg = service.snapshot()
-                    port = self.server.server_port
-                    return self.reply(200, {'network': {
-                        'httpServers':[{'name':'campus-api','enable':True,'host':'127.0.0.1','port':urllib.parse.urlsplit(cfg['onebot_url']).port or 80,'token':cfg['onebot_token'],'messagePostFormat':'array'}],
-                        'httpClients':[{'name':'campus-events','enable':True,'url':f'http://127.0.0.1:{port}/onebot/events','token':cfg['onebot_token'],'messagePostFormat':'array','reportSelfMessage':False}],
-                        'websocketServers':[], 'websocketClients':[]}})
                 return self.reply(404, {'error':'接口不存在'})
             except ValueError as error:
                 return self.reply(400, {'error':str(error)[:160]})
@@ -1040,12 +985,6 @@ def make_handler(service):
                     return self.reply(200, service.start_services())
                 if path == '/api/probe':
                     return self.reply(200, service.probe())
-                if path == '/api/weixin/start':
-                    return self.reply(200, service.weixin.start())
-                if path == '/api/weixin/code':
-                    return self.reply(200, service.weixin.code(value.get('code','')))
-                if path == '/api/weixin/cancel':
-                    return self.reply(200, service.weixin.cancel())
                 return self.reply(404, {'error':'接口不存在'})
             except (ValueError, TypeError, KeyError) as error:
                 return self.reply(400, {'error':str(error)[:160]})

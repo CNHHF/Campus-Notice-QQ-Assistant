@@ -194,7 +194,7 @@ sealed class Launcher:Form {
         }catch{loading.Visible=true;web.Visible=false;summary.Text="服务尚未就绪。可稍后重试，或通过服务菜单查看状态和运行日志。";}
         finally{busy=false;}
     }
-    async Task ShowStatus(){var states=await Task.Run(delegate{return new[]{Program.Healthy(),Program.Port(8765),Program.Port(18789),Program.Port(3000)};});MessageBox.Show("管理服务："+(states[0]?"在线":"未就绪")+"\n通知工作台："+(states[1]?"在线":"未就绪")+"\n微信网关："+(states[2]?"端口在线":"未就绪")+"\nQQ 接口："+(states[3]?"端口在线":"等待登录")+"\n\n扫码及投递状态请在工作台接入设置中查看。",Text);}
+    async Task ShowStatus(){var states=await Task.Run(delegate{return new[]{Program.Healthy(),Program.Port(8765),Program.Port(3000)};});MessageBox.Show("管理服务："+(states[0]?"在线":"未就绪")+"\n通知工作台："+(states[1]?"在线":"未就绪")+"\nQQ 接口："+(states[2]?"端口在线":"等待登录")+"\n\n扫码及投递状态请在工作台接入设置中查看。",Text);}
     async void StopAll(object sender,EventArgs e){
         if(busy||MessageBox.Show("停止本部署的通知服务并退出？配置和历史记录会保留。发送中任务会阻止停止。",Text,MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
         busy=true;try{var info=new ProcessStartInfo(Program.Python(),Program.Quote(Path.Combine(appDir,"stop_services.py"))+" "+Program.Quote(root)){UseShellExecute=false,CreateNoWindow=true};using(var p=Process.Start(info)){await Task.Run(delegate{p.WaitForExit();});if(p.ExitCode!=0)throw new InvalidOperationException();}exit=true;Close();}catch{MessageBox.Show("当前无法安全停止，请稍后重试。",Text);}finally{busy=false;}

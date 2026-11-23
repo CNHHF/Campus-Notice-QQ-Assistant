@@ -388,6 +388,12 @@ class ServiceTests(unittest.TestCase):
 
 
 class HTTPTests(unittest.TestCase):
+    def test_removed_channel_routes_are_unavailable(self):
+        headers={'Authorization':'Bearer '+self.service.snapshot()['admin_token'],'Content-Type':'application/json'}
+        self.assertEqual(self.request('/api/weixin/qr',headers=headers)[0],404)
+        for action in ('start','code','cancel'):
+            self.assertEqual(self.request('/api/weixin/'+action,{},headers)[0],404)
+
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()
         self.service=app.Service(Path(self.temp.name)/'runtime',Path(self.temp.name)/'missing.db')

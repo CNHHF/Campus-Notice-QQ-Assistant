@@ -29,3 +29,5 @@ bridge/*.policy.tmp
 
 desktop/artifacts/
 desktop/tools/
+**/.venv/
+bridge/*.tmp

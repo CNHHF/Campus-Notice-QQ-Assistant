@@ -10,17 +10,17 @@ import time
 from contextlib import closing
 
 
-def selected_process(row, root, gateway_pid):
+def selected_process(row, root, gateway_pid=0):
     command=(row.get('CommandLine') or '').replace('\\','/').lower()
     executable=(row.get('ExecutablePath') or '').replace('\\','/').lower()
     base=root.as_posix().lower().rstrip('/')+'/'
     if executable.endswith(('/python.exe','/pythonw.exe')):
-        return any(base+part in command for part in ('qq-service/app.py','qq-service/launch.py','weixin-bridge/bridge.py','bridge/bridge.py'))
+        return any(base+part in command for part in ('qq-service/app.py','qq-service/launch.py','bridge/bridge.py'))
     if executable in (base+'school-radar-pkg/school-radar/school-radar.exe',base+'school-radar-pkg/school-radar/school-radar-cli.exe'):
         return True
     if executable.endswith('/qq.exe') and base+'qq-client/napcat/' in command:
         return True
-    return row.get('ProcessId')==gateway_pid and executable.endswith('/node.exe') and '/openclaw/' in command and 'index.js gateway' in command
+    return False
 
 
 def safe_to_stop(root):
@@ -29,8 +29,7 @@ def safe_to_stop(root):
         with closing(sqlite3.connect('file:'+database.as_posix()+'?mode=ro',uri=True,timeout=2)) as db:
             for table,states in [('deliveries',"'sending'"),('manual_push',"'queued','sending'")]:
                 if db.execute('SELECT COUNT(*) FROM '+table+' WHERE status IN ('+states+')').fetchone()[0]:return False
-    bridge=root/'weixin-bridge'
-    if not bridge.exists():bridge=root/'bridge'
+    bridge=root/'bridge'
     # A schedule is written during the wait between rounds; leave a margin before wakeup.
     if (bridge/'bridge-config.json').exists() and not (bridge/'crawl-schedule.json').exists():
         return False
@@ -50,9 +49,7 @@ def main():
     result=subprocess.run(['powershell.exe','-NoProfile','-Command',script],capture_output=True,timeout=20,creationflags=0x08000000)
     if result.returncode:return 3
     rows=json.loads(result.stdout.decode('utf-8-sig',errors='replace'))
-    try:gateway=int(json.loads((root/'qq-service/runtime/startup-status.json').read_text(encoding='utf-8')).get('gateway_pid',0))
-    except (OSError,ValueError):gateway=0
-    selected=[r for r in rows if selected_process(r,root,gateway)]
+    selected=[r for r in rows if selected_process(r,root)]
     # Stop the scheduler first, then other components. No process-name-wide termination.
     selected.sort(key=lambda r:0 if 'app.py' in (r.get('CommandLine') or '') else 1)
     database=root/'qq-service/runtime/service.db'

@@ -21,7 +21,7 @@ class DesktopTests(unittest.TestCase):
 
     def test_gateway_requires_both_known_pid_and_verified_command(self):
         row={'ProcessId':42,'ExecutablePath':'C:/Node/node.exe','CommandLine':'node C:/npm/openclaw/dist/index.js gateway'}
-        self.assertTrue(selected_process(row,self.root,42))
+        self.assertFalse(selected_process(row,self.root,42))
         self.assertFalse(selected_process(row,self.root,43))
         row['CommandLine']='node other.js'
         self.assertFalse(selected_process(row,self.root,42))
@@ -36,8 +36,8 @@ class DesktopTests(unittest.TestCase):
             db.execute("UPDATE deliveries SET status='sent'");db.commit()
         self.assertTrue(safe_to_stop(self.root))
 
-    def test_stop_only_during_wechat_wait_period(self):
-        folder=self.root/'weixin-bridge';folder.mkdir()
+    def test_stop_only_during_collection_wait_period(self):
+        folder=self.root/'bridge';folder.mkdir()
         (folder/'bridge-config.json').write_text('{"interval_minutes":60}',encoding='utf-8')
         self.assertFalse(safe_to_stop(self.root))
         (folder/'crawl-schedule.json').write_text(json.dumps({'wait_started_epoch':time.time()}),encoding='utf-8')
