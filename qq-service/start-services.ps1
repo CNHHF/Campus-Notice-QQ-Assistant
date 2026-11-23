@@ -1,8 +1,13 @@
 param([switch]$InspectOnly)
 $ErrorActionPreference = 'Stop'
-$root = if ($env:CAMPUS_DEPLOY_ROOT) { $env:CAMPUS_DEPLOY_ROOT } else { Split-Path -Parent $PSScriptRoot }
-$bridgeDir = if (Test-Path -LiteralPath (Join-Path $root 'weixin-bridge')) { Join-Path $root 'weixin-bridge' } else { Join-Path $root 'bridge' }
+$root = Split-Path -Parent $PSScriptRoot
 $runtime = Join-Path $PSScriptRoot 'runtime'
+$openclawDisabled = Test-Path -LiteralPath (Join-Path $runtime 'openclaw.disabled')
+$officialPath = Join-Path $runtime 'official-qq.json'
+$officialQQ = Test-Path -LiteralPath $officialPath
+$openclawDisabled = $openclawDisabled -or $officialQQ
+$bridgeDir = Join-Path $root 'weixin-bridge'
+if (-not (Test-Path -LiteralPath $bridgeDir)) { $bridgeDir = Join-Path $root 'bridge' }
 New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 $startupErrors = New-Object 'System.Collections.Generic.List[string]'
 $mutex = New-Object System.Threading.Mutex($false,'Local\CampusNoticeServiceBootstrap')
@@ -10,7 +15,7 @@ try { $ownsMutex = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexExc
 if (-not $ownsMutex) { $mutex.Dispose(); exit 0 }
 try {
 function Find-Gateway { Get-CimInstance Win32_Process -Filter "name='node.exe'" | Where-Object { $_.CommandLine -like '*openclaw*index.js gateway*' } | Select-Object -First 1 }
-function Find-Bridge { Get-CimInstance Win32_Process -Filter "name='python.exe'" | Where-Object { $_.CommandLine -like ('*' + $bridgeDir + '*bridge.py*') } | Select-Object -First 1 }
+function Find-Bridge { Get-CimInstance Win32_Process -Filter "name='python.exe'" | Where-Object { $_.CommandLine -like ('*' + (Join-Path $bridgeDir 'bridge.py') + '*') } | Select-Object -First 1 }
 function Port-Ready([int]$port) {
     $client = New-Object System.Net.Sockets.TcpClient
     try { $task = $client.ConnectAsync('127.0.0.1',$port); return ($task.Wait(300) -and $client.Connected) } catch { return $false } finally { $client.Dispose() }
@@ -19,7 +24,7 @@ if (-not $InspectOnly) {
     $existingBridge = Find-Bridge
     $pending = @{phase='starting'; started_epoch=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); bridge_pid=$(if ($existingBridge) { $existingBridge.ProcessId } else { 0 })}
     [System.IO.File]::WriteAllText((Join-Path $runtime 'startup-status.json'),($pending | ConvertTo-Json -Compress),[System.Text.UTF8Encoding]::new($false))
-    try { if (-not (Find-Gateway)) { Start-Process -WindowStyle Hidden -FilePath 'wscript.exe' -ArgumentList (Join-Path $env:USERPROFILE '.openclaw\gateway.vbs') } } catch { $startupErrors.Add('WeChat gateway launch failed.') }
+    try { if (-not $openclawDisabled -and -not (Find-Gateway)) { Start-Process -WindowStyle Hidden -FilePath 'wscript.exe' -ArgumentList (Join-Path $env:USERPROFILE '.openclaw\gateway.vbs') } } catch { $startupErrors.Add('WeChat gateway launch failed.') }
     try {
     if (-not (Get-CimInstance Win32_Process -Filter "name='school-radar.exe'" | Select-Object -First 1)) {
         $radar = Join-Path $root 'school-radar-pkg\school-radar'
@@ -27,7 +32,9 @@ if (-not $InspectOnly) {
     }
     } catch { $startupErrors.Add('Notice workbench launch failed.') }
     try {
-    if (-not (Port-Ready 3000) -and -not (Port-Ready 6099)) {
+    if ($officialQQ) {
+        # The official QQ transport runs inside qq-service/app.py, started by launch.py.
+    } elseif (-not (Port-Ready 3000) -and -not (Port-Ready 6099)) {
         $client = Join-Path $root 'qq-client\start-qq-client.bat'
         if (Test-Path -LiteralPath $client) {
             $qq = Get-CimInstance Win32_Process -Filter "name='QQ.exe'" | Where-Object { $_.CommandLine -like '*NapCat*' } | Select-Object -First 1
@@ -43,12 +50,15 @@ if (-not $InspectOnly) {
     } catch { $startupErrors.Add('QQ startup failed. Check client installation and UTF-8 config.') }
     # Cold gateway startup may exceed 45 seconds. Keep waiting in this background worker.
     $deadline = [DateTime]::UtcNow.AddSeconds(300)
-    while (-not (Port-Ready 18789) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    while (-not $openclawDisabled -and -not (Port-Ready 18789) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 500 }
     try {
-    if ((Port-Ready 18789) -and -not (Find-Bridge)) {
-        $vbs = Join-Path $bridgeDir 'weixin-bridge.vbs'
-        if (Test-Path -LiteralPath $vbs) { Start-Process -WindowStyle Hidden -FilePath 'wscript.exe' -ArgumentList $vbs }
-        else { Start-Process -WindowStyle Hidden -FilePath (Get-Command python.exe).Source -ArgumentList ('"' + (Join-Path $bridgeDir 'bridge.py') + '"') -WorkingDirectory $bridgeDir }
+    if (($openclawDisabled -or (Port-Ready 18789)) -and -not (Find-Bridge)) {
+        if ($officialQQ) {
+            $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+            Start-Process -WindowStyle Hidden -FilePath $python -ArgumentList ('"' + (Join-Path $bridgeDir 'bridge.py') + '" --wait-first-round') -WorkingDirectory $bridgeDir
+        } else {
+            Start-Process -WindowStyle Hidden -FilePath 'wscript.exe' -ArgumentList (Join-Path $bridgeDir 'weixin-bridge.vbs')
+        }
         Start-Sleep -Milliseconds 700
     }
     } catch { $startupErrors.Add('WeChat bridge launch failed.') }
@@ -56,7 +66,7 @@ if (-not $InspectOnly) {
 }
 $gateway = Find-Gateway
 $bridge = Find-Bridge
-$status = @{ errors=@($startupErrors.ToArray()); phase='finished'; gateway_pid = if ($gateway) { $gateway.ProcessId } else { 0 }; bridge_pid = if ($bridge) { $bridge.ProcessId } else { 0 }; gateway_ready = (Port-Ready 18789); qq_ready = (Port-Ready 3000); checked_at = [DateTime]::Now.ToString('s') }
+$status = @{ errors=@($startupErrors.ToArray()); phase='finished'; gateway_pid = if ($gateway) { $gateway.ProcessId } else { 0 }; bridge_pid = if ($bridge) { $bridge.ProcessId } else { 0 }; gateway_ready = (Port-Ready 18789); qq_ready = $(if ($officialQQ) { Port-Ready 8788 } else { Port-Ready 3000 }); checked_at = [DateTime]::Now.ToString('s') }
 $json = $status | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText((Join-Path $runtime 'startup-status.json'),$json,[System.Text.UTF8Encoding]::new($false))
 Write-Output $json

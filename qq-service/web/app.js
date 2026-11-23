@@ -6,7 +6,7 @@ const manualSelection=new Set();
 let manualBatch=null, manualTargetSignature='';
 let searchOffset=0, searchQuery=null, searchBusy=false, filtersLoaded=false;
 const el = id => document.getElementById(id);
-const titles = {overview:'投递中心',workbench:'校园通知工作台',access:'访问与群管理',notices:'通知收件箱',connect:'接入设置'};
+const titles = {overview:'采集与查询',workbench:'校园通知工作台',access:'访问与群管理',notices:'通知收件箱',connect:'接入设置'};
 
 async function api(path, data) {
   const response = await fetch(path, {method: data === undefined ? 'GET':'POST', credentials:'same-origin',headers:data === undefined ? {} : {'Content-Type':'application/json'},body:data === undefined ? undefined : JSON.stringify(data)});
@@ -72,6 +72,7 @@ function render(){
   const kinds={configuration:'设置更新',query:'通知查询',reply_error:'回复异常',query_error:'查询异常',model_error:'模型异常',push_sent:'推送成功',push_failed:'发送失败',push_uncertain:'结果不确定',push_error:'推送异常',busy:'服务繁忙'};
   if(!s.activity.length)list.textContent='配置 QQ 接入后，运行记录将在这里显示。';
   for(const a of s.activity){const row=node('div',undefined,'activity-item');row.append(node('time',a.at.replace('T',' ')),node('span',kinds[a.kind]||a.kind,'kind'),node('span',a.detail));list.append(row);}
+  if(s.official_qq)renderOfficial(s);
 }
 function renderLists(){
   for(const [field,id] of [['private_users','user-list'],['groups','group-list']]){
@@ -366,23 +367,106 @@ function showQQCode(value){
  if(qqQrRevision!==value.qr_revision){qqQrRevision=value.qr_revision;el('qq-login-image').src='/api/qq-console/qr?t='+encodeURIComponent(qqQrRevision);}
 }
 async function refreshQQConsole(){
- if(qqConsoleBusy||!state)return;qqConsoleBusy=true;el('qq-console-refresh').disabled=true;
- try{
-  const value=await api('/api/qq-console/state');
-  el('qq-console-badge').textContent=value.logged_in?'已登录':value.available?'等待登录':'未连接';
-  el('qq-console-message').textContent=value.message;
-  qqLoggedIn=!!value.logged_in;el('qq-login-qr').hidden=qqLoggedIn;
-  const rows=[['QQ 登录',value.logged_in?'已登录':value.available?'等待扫码 / 手机确认':'客户端未就绪',value.logged_in],['消息发送接口',value.connection?.connected?'已连接 · QQ '+value.connection.qq:value.logged_in?(value.connection?.message||'未连接'):'登录后检查',!!value.connection?.connected],['发送通道配置',value.outgoing_configured?'匹配本项目':'尚未就绪或不匹配',!!value.outgoing_configured],['消息回传配置',value.incoming_configured?'匹配本项目':'尚未就绪或不匹配',!!value.incoming_configured],['本次运行最近收信',state.last_event?.replace('T',' ')||'暂无记录',!!state.last_event]];
-  const box=el('qq-diagnostics');box.replaceChildren();for(const [label,text,good] of rows)box.append(node('dt',label),node('dd',text,good?'ok':'warning'));
-  const queued=state.stats.queued||0;el('qq-queue-note').textContent=`待发 ${queued} 条 · ${state.push_preferences?.qq_push_paused?'QQ 自动推送已暂停，可在采集与推送中恢复。':'登录成功后会按现有规则自动发送。'}结果不确定的消息不会自动重发。`;
-  if(value.available&&!value.logged_in){
-   if(value.qr_ready)showQQCode(value);
-   else{showQQCode({qr_ready:false});const code=await api('/api/qq-console/qr',{});showQQCode(code);el('qq-console-message').textContent=code.message;}
-  }else showQQCode({qr_ready:false});
- }catch(error){el('qq-console-message').textContent=error.message;}
- finally{qqConsoleBusy=false;el('qq-console-refresh').disabled=false;}
+ if(qqConsoleBusy||!state)return;qqConsoleBusy=true;
+ try{await refresh();}catch(error){toast(error.message,true);}finally{qqConsoleBusy=false;}
 }
 el('qq-console-refresh').addEventListener('click',refreshQQConsole);
 el('qq-login-qr').addEventListener('click',async()=>{if(qqConsoleBusy)return;qqConsoleBusy=true;el('qq-login-qr').disabled=true;try{const value=await api('/api/qq-console/qr',{refresh:true});el('qq-console-message').textContent=value.message;showQQCode(value);}catch(error){showQQCode({qr_ready:false});toast(error.message,true);}finally{qqConsoleBusy=false;el('qq-login-qr').disabled=qqLoggedIn;}});
 el('qq-console-start').addEventListener('click',async()=>{el('qq-console-start').disabled=true;try{await api('/api/services/start',{});toast('已请求启动 / 修复，请稍后刷新状态。');await refreshQQConsole();}catch(error){toast(error.message,true);}finally{el('qq-console-start').disabled=false;}});
 setInterval(()=>{if(!el('connect').hidden&&!el('pane-qq').hidden&&!el('shell').hidden&&!document.hidden)refreshQQConsole();},10000);
+
+
+function renderOfficial(s){
+ const q=s.official_qq, subscriptions=q.subscriptions||[];
+ if(!q.activity?.length)el('activity-list').textContent='暂无查询记录。可在 QQ 中发送“最新通知”开始使用。';
+ titles.access='会话与筛选';
+ el('services-message').textContent=s.services?.error || (s.connection.connected?'官方 QQ Bot 已连接。通知采集沿用原有调度；微信和旧 QQ 客户端保持停用。':'官方 QQ Bot 未连接，可启动 / 修复后刷新。');
+ for(const id of ['weixin-gateway-status','weixin-bridge-status','weixin-push-status'])el(id).closest('.status-row').hidden=true;
+ el('weixin-push-detail').hidden=true;
+ el('qq-status').previousElementSibling.textContent='官方 QQ Bot';
+ for(const [id,label,count,help] of [
+  ['metric-groups','群会话筛选',subscriptions.filter(x=>x.kind==='group'&&x.enabled).length,'已启用查询筛选的群会话'],
+  ['metric-users','私聊筛选',subscriptions.filter(x=>x.kind==='c2c'&&x.enabled).length,'已启用查询筛选的私聊会话']]){
+   const metric=el(id);metric.textContent=count;metric.previousElementSibling.textContent=label;metric.nextElementSibling.textContent=help;
+ }
+ const uncertain=q.stats?.uncertain||0;
+ el('metric-pending').textContent='自动采集 · 群内 @ 查询 · 官方 QQ 不支持主动推送';
+ el('usage-text').textContent=`DeepSeek 累计输入 ${s.usage.input_tokens.toLocaleString()} token / 输出 ${s.usage.output_tokens.toLocaleString()} token；采集和关键词查询不调用模型。`;
+ for(const id of ['wx-push-paused','qq-push-paused'])el(id).closest('label').hidden=true;
+ el('official-connection-badge').textContent=s.connection.connected?'已连接':q.available?'连接中 / 待处理':'服务未启动';
+ const diagnostic=el('official-diagnostics');diagnostic.replaceChildren();
+ for(const [label,value] of [['AppID',q.app_id||'—'],['渠道状态',s.connection.message],['凭据',q.configured?'已保存（不显示密钥）':'未配置'],['DeepSeek 模型',q.model||'—'],['访问范围',q.allow_all?'所有能联系机器人的用户':'已配置的 OpenID 名单']])diagnostic.append(node('dt',label),node('dd',value));
+ if(!el('official-settings-form').dataset.dirty)el('official-app-id').value=q.app_id||'';
+ if(!el('official-settings-form').dataset.dirty){el('official-allow-all').checked=!!q.allow_all;el('official-openids').value=(q.allow_from||[]).join('\n');}
+ el('official-openids-label').hidden=el('official-allow-all').checked;
+ if(!el('official-model-form').dataset.dirty)el('official-model-id').value=q.model||'deepseek-flash';
+ el('official-model-config-status').textContent=q.model_configured?'API Key 已保存在本项目中，不回显。':'尚未配置 API Key；关键词查询仍可使用。';
+ el('official-model-note').textContent=`当前模型：${q.model||'未读取'} · 服务商：${q.provider||'—'}。自然语言查询调用模型，通知采集不调用模型。`;
+ el('official-access-note').textContent=q.allow_all?'当前允许所有能联系机器人的用户查询。官方版不主动推送；群内请 @ 后发送“查看订阅”。':'当前按 OpenID 名单限制查询；会话筛选不会绕过访问权限，也不会触发主动推送。';
+ const tbody=el('official-subscriptions');tbody.replaceChildren();
+ if(!subscriptions.length){const tr=node('tr'),td=node('td','尚无会话筛选。点击“新增订阅”保存内容范围，在 QQ 中发送“查看订阅”查询。','muted');td.colSpan=5;tr.append(td);tbody.append(tr);}
+ for(const sub of subscriptions){
+  const tr=node('tr'),filters=sub.filters||{},summary=[];
+  if(filters.sources?.length)summary.push('来源：'+filters.sources.join('、'));
+  if(filters.categories?.length)summary.push('分类：'+filters.categories.map(v=>s.category_options[v]||v).join('、'));
+  if(filters.keywords?.length)summary.push('包含：'+filters.keywords.join(' / '));
+  const info=node('td');info.append(node('span',sub.enabled?'筛选已启用':'筛选已停用'));if(sub.last_error)info.append(node('small',sub.last_error,'subscription-error'));
+  tr.append(node('td',sub.label|| (sub.kind==='group'?'群聊':'私聊')),node('td',(sub.kind==='group'?'群聊 · ':'私聊 · ')+sub.target.slice(0,8)+'…'+sub.target.slice(-4),'official-openid'),node('td',summary.join('；')||'全部匹配（遵循全局排除规则）'),info);
+  const td=node('td',undefined,'subscription-actions'),edit=node('button','编辑','secondary'),toggle=node('button',sub.enabled?'停用':'启用','secondary');
+  edit.addEventListener('click',()=>openSubscriptionEditor(sub));
+  toggle.addEventListener('click',async()=>{toggle.disabled=true;try{if(sub.enabled)await api('/api/official-qq/pause',{kind:sub.kind,target:sub.target});else await api('/api/official-qq/subscription/save',{kind:sub.kind,target:sub.target,label:sub.label||'',filters:sub.filters||{},enabled:true});await refresh();toast(sub.enabled?'已停用会话筛选':'已启用会话筛选，在 QQ 中 @ 后发送“查看订阅”');}catch(e){toast(e.message,true);toggle.disabled=false;}});
+  td.append(edit,toggle);tr.append(td);tbody.append(tr);
+ }
+}
+el('official-settings-form').addEventListener('input',()=>{el('official-settings-form').dataset.dirty='true';});
+el('official-settings-form').addEventListener('submit',async event=>{
+ event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;changing=true;
+ try{await api('/api/official-qq/config',{app_id:el('official-app-id').value.trim(),secret:el('official-secret').value.trim(),allow_all:el('official-allow-all').checked,allow_from:el('official-openids').value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean)});el('official-secret').value='';delete el('official-settings-form').dataset.dirty;await refresh();toast('已保存，官方 QQ Bot 正在重新连接');}catch(e){toast(e.message,true);}finally{button.disabled=false;changing=false;}
+});
+for(const id of ['official-refresh','official-refresh-subscriptions'])el(id).addEventListener('click',async()=>{try{await refresh();toast('官方 QQ Bot 状态已刷新');}catch(e){toast(e.message,true);}});
+el('official-start').addEventListener('click',async()=>{try{await api('/api/services/start',{});toast('已请求启动校园通知和官方 QQ Bot 服务');await refresh();}catch(e){toast(e.message,true);}});
+
+el('official-allow-all').addEventListener('change',()=>{el('official-openids-label').hidden=el('official-allow-all').checked;});
+el('official-model-form').addEventListener('input',()=>{el('official-model-form').dataset.dirty='true';});
+el('official-model-form').addEventListener('submit',async event=>{
+ event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;changing=true;
+ try{await api('/api/official-qq/model',{model:el('official-model-id').value.trim(),api_key:el('official-model-key').value.trim()});el('official-model-key').value='';delete event.target.dataset.dirty;await refresh();toast('DeepSeek 配置已保存到本项目');}catch(e){toast(e.message,true);}finally{button.disabled=false;changing=false;}
+});
+
+let subscriptionEditorSequence=0;
+function subscriptionPayload(){
+ return {kind:el('subscription-kind').value,target:el('subscription-target').value.trim(),label:el('subscription-label').value.trim(),enabled:el('subscription-enabled').checked,
+ filters:{sources:[...el('subscription-sources').selectedOptions].map(o=>o.value),categories:[...el('subscription-categories').selectedOptions].map(o=>o.value),keywords:el('subscription-keywords').value.split(/[\r\n,，;；]+/).map(v=>v.trim()).filter(Boolean)}};
+}
+function closeSubscriptionEditor(){subscriptionEditorSequence++;el('subscription-editor').hidden=true;el('official-add-subscription').focus();}
+async function openSubscriptionEditor(sub=null){
+ const sequence=++subscriptionEditorSequence;
+ el('subscription-editor').hidden=false;el('subscription-form').reset();el('subscription-preview-results').hidden=true;
+ el('subscription-editor-title').textContent=sub?'编辑订阅':'新增订阅';
+ el('subscription-kind').value=sub?.kind||'group';el('subscription-target').value=sub?.target||'';el('subscription-target').readOnly=!!sub;el('subscription-kind').disabled=!!sub;
+ el('subscription-label').value=sub?.label||'';el('subscription-enabled').checked=sub?!!sub.enabled:true;
+ const filters=sub?.filters||{};el('subscription-keywords').value=(filters.keywords||[]).join('\n');
+ const choices=el('subscription-contact');choices.replaceChildren(node('option','选择会话，或在下方填写 OpenID'));choices.options[0].value='';choices.disabled=!!sub;
+ const q=state.official_qq,contacts=new Map();for(const item of [...q.contacts||[],...q.subscriptions||[]])contacts.set(item.kind+':'+item.target,item);
+ for(const item of contacts.values()){const label=item.label|| (item.kind==='group'?'群聊':'私聊');const option=node('option',label+' · '+item.target.slice(0,8)+'…'+item.target.slice(-4));option.value=JSON.stringify([item.kind,item.target]);choices.append(option);}
+ if(sub)choices.value=JSON.stringify([sub.kind,sub.target]);
+ fillOptions(el('subscription-categories'),state.category_options,filters.categories||[]);
+ el('subscription-save').disabled=true;
+ try{const catalog=await api('/api/search/filters');if(sequence!==subscriptionEditorSequence)return;const sources=[...new Set([...(catalog.sources||[]),...(filters.sources||[])])];fillOptions(el('subscription-sources'),Object.fromEntries(sources.map(v=>[v,v])),filters.sources||[]);el('subscription-save').disabled=false;el('subscription-label').focus();}
+ catch(e){toast('读取来源列表失败，请重新打开订阅编辑器。',true);}
+}
+el('official-add-subscription').addEventListener('click',()=>openSubscriptionEditor());
+el('subscription-editor-close').addEventListener('click',closeSubscriptionEditor);
+el('subscription-contact').addEventListener('change',()=>{if(!el('subscription-contact').value)return;const [kind,target]=JSON.parse(el('subscription-contact').value);el('subscription-kind').value=kind;el('subscription-target').value=target;});
+el('subscription-form').addEventListener('input',()=>{el('subscription-preview-results').hidden=true;});
+el('subscription-form').addEventListener('submit',async event=>{
+ event.preventDefault();const button=el('subscription-save');button.disabled=true;changing=true;
+ try{await api('/api/official-qq/subscription/save',subscriptionPayload());closeSubscriptionEditor();await refresh();toast('筛选已保存，在 QQ 中 @ 后发送“查看订阅”查询');}
+ catch(e){toast(e.message,true);}finally{button.disabled=false;changing=false;}
+});
+el('subscription-preview').addEventListener('click',async()=>{
+ const button=el('subscription-preview');button.disabled=true;
+ try{const result=await api('/api/official-qq/subscription/preview',subscriptionPayload());const box=el('subscription-preview-results');box.replaceChildren(node('p',`当前库中有 ${result.total} 条匹配通知，以下最多显示5条。仅供预览，不会发送消息。`));
+ for(const item of result.items){const row=node('div',undefined,'subscription-preview-item'),link=node('a',item.title);link.href=safeLink(item.url);link.target='_blank';link.rel='noopener noreferrer';row.append(link,node('small',`${item.pub_date||'日期未标明'} · ${item.source_name||''}`));box.append(row);}box.hidden=false;}
+ catch(e){toast(e.message,true);}finally{button.disabled=false;}
+});

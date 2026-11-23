@@ -1,7 +1,7 @@
-[Setup]
+﻿[Setup]
 AppId={{6E973BA2-F10E-4B38-9D52-9F1BFB42F918}
 AppName=校园通知助手
-AppVersion=1.1.2
+AppVersion=1.2.0
 AppPublisher=HHF
 DefaultDirName={localappdata}\Programs\CampusNotice
 DefaultGroupName=校园通知助手
@@ -9,7 +9,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts
-OutputBaseFilename=CampusNotice-Setup-1.1.2
+OutputBaseFilename=CampusNotice-Setup-1.2.0
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -54,7 +54,7 @@ begin Result := DeployPage.Values[0]; end;
 procedure InitializeWizard;
 var Existing: String;
 begin
-  DeployPage := CreateInputDirPage(wpSelectDir, '选择已有部署目录', '接管现有校园通知服务，账号和数据留在原处。', '请选择包含 qq-service 的目录。本安装包提供桌面启动器，沿用该目录现有 Python、抓取器、微信及 QQ 组件。卸载启动器不会删除此目录。', False, '');
+  DeployPage := CreateInputDirPage(wpSelectDir, '选择已有部署目录', '官方 QQ Bot 与校园通知服务独立运行，账号和数据留在原处。', '请选择包含 qq-service 的目录。本安装包提供桌面启动器，请先在该目录运行 qq-service/setup.ps1，并准备本项目的通知采集组件。无需其他 AI 应用或 QQ 客户端。卸载启动器不会删除此目录。', False, '');
   DeployPage.Add('校园通知部署目录：');
   if not RegQueryStringValue(HKCU, 'Software\HHF\CampusNotice', 'DeploymentRoot', Existing) then
     Existing := AddBackslash(GetEnv('USERPROFILE')) + 'deploy-work';

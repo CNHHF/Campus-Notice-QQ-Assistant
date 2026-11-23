@@ -1,7 +1,8 @@
-"""Campus QQ service. OneBot HTTP transport; no crawler, shell tools or cookies."""
+"""Standalone campus notice service with official QQ Bot and optional legacy transport."""
 from __future__ import annotations
 
 import inbox
+import official_bot as official_qq
 from competition_search import competition_intent, sql_filters
 from qq_console import QQConsole
 import argparse
@@ -70,7 +71,11 @@ class AmbiguousDelivery(Exception):
 
 
 class Service:
+    def official_enabled(self):
+        return (self.data / 'official-qq.json').is_file()
+
     def __init__(self, data_dir=None, radar_db=None):
+        self.root = ROOT
         self.data = Path(data_dir or BASE / "runtime")
         self.data.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data / "service.db"
@@ -207,6 +212,8 @@ class Service:
         key = os.environ.get('DEEPSEEK_API_KEY') or cfg.get('deepseek_key')
         if key:
             return key
+        if self.official_enabled():
+            return ''
         # Only the DeepSeek provider's named environment reference; no copying all credentials.
         try:
             oc = json.loads((Path.home() / '.openclaw/openclaw.json').read_text(encoding='utf-8'))
@@ -254,10 +261,11 @@ class Service:
             radar = {'count': len(rows), 'latest': max((r.get('first_seen') or '' for r in rows), default=''), 'ready': True}
         except sqlite3.Error:
             radar = {'count': 0, 'latest': '', 'ready': False}
-        return {'config': cfg, 'connection': self.connection, 'radar': radar,
+        result = {'config': cfg, 'connection': self.connection, 'radar': radar,
                 'last_event': self.last_event, 'stats': stats, 'activity': activity,
                 'usage': usage, 'model_ready': bool(self.model_key()), 'poll_seconds': 60, 'crawl_minutes': read_interval(BRIDGE_DIR/'bridge-config.json'),
                 'push_preferences':read_policy(BRIDGE_DIR/'bridge-config.json'), 'category_options':CATEGORIES, 'crawl_status':self.crawl_status(), 'weixin': self.weixin.snapshot(), 'services': self.services_status()}
+        return official_qq.overlay(result) if self.official_enabled() else result
 
     def crawl_status(self):
         # This reads the local workbench; never calls refresh or visits school sites.
@@ -365,6 +373,9 @@ class Service:
         return result.get('data') or {}
 
     def probe(self):
+        if self.official_enabled():
+            self.connection = official_qq.probe()
+            return self.connection
         try:
             login = self.onebot('get_login_info', {})
             expected = self.snapshot()['bot_qq']
@@ -411,6 +422,8 @@ class Service:
         return {'user': user, 'group': group, 'text': text, 'key': f'{group or "private"}:{user}'}
 
     def accept_event(self, event):
+        if self.official_enabled():
+            return False
         cfg = self.snapshot()
         parsed = self.parse_event(event, cfg)
         if not parsed:
@@ -718,7 +731,7 @@ class Service:
     def push_filters(self):
         # Read only non-secret filter fields. Never expose or use WeChat identity/cookies.
         try:
-            source = json.loads((BRIDGE_DIR / 'bridge-config.json').read_text(encoding='utf-8'))
+            source = json.loads((ROOT / 'weixin-bridge/bridge-config.json').read_text(encoding='utf-8'))
         except (OSError, ValueError):
             source = {}
         return {'exclude_categories': source.get('exclude_categories', ['jobstart']),
@@ -727,6 +740,8 @@ class Service:
                 'min_score': source.get('min_score', 0), 'quiet_hours': source.get('quiet_hours', [])}
 
     def push_round(self):
+        if self.official_enabled():
+            return
         with self.lock:
             cfg = self.snapshot()
             groups = [g for g in cfg['groups'] if g['enabled'] and g['push']]
@@ -912,6 +927,8 @@ def make_handler(service):
                 return self.reply(401, {'error':'请先登录管理页面'})
             try:
                 if parsed.path == '/api/qq-console/state':
+                    if service.official_enabled():
+                        return self.reply(200, official_qq.dashboard())
                     return self.reply(200, service.qq_console.inspect(service, self.server.server_port))
                 if parsed.path == '/api/qq-console/qr':
                     with service.qq_console.lock:
@@ -1022,6 +1039,18 @@ def make_handler(service):
                 if path == '/api/config':
                     service.save_config(value)
                     return self.reply(200, {'ok':True})
+                if path == '/api/official-qq/config':
+                    return self.reply(200, official_qq.save(value))
+                if path == '/api/official-qq/pause':
+                    return self.reply(200, official_qq.pause(value))
+                if path == '/api/official-qq/model':
+                    return self.reply(200, official_qq.save_model(value))
+                if path == '/api/official-qq/subscription/save':
+                    return self.reply(200, official_qq.save_subscription(value))
+                if path == '/api/official-qq/subscription/preview':
+                    return self.reply(200, official_qq.preview_subscription(value))
+                if service.official_enabled() and path in ('/api/qq-console/qr','/api/weixin/start','/api/weixin/code','/api/manual/preview','/api/manual/send'):
+                    raise ValueError('当前使用官方 QQ Bot；旧扫码和 OneBot 手动发送已停用。')
                 if path == '/api/inbox/flags':
                     return self.reply(200,inbox.update(service,value))
                 if path == '/api/qq-console/qr':
@@ -1061,6 +1090,8 @@ def main():
     parser.add_argument('--radar-db')
     args = parser.parse_args()
     service = Service(args.data_dir, args.radar_db)
+    if service.official_enabled():
+        official_qq.start(service)
     server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(service))
     for _ in range(2):
         threading.Thread(target=service.query_worker, daemon=True).start()
@@ -1071,6 +1102,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        official_qq.stop()
         service.stop.set()
         server.server_close()
 

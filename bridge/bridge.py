@@ -583,7 +583,7 @@ def main() -> int:
     if not cfg.get("radar_db"):
         log("bridge-config.json 里 radar_db 还没填（school-radar 的 data\\radar.db 路径）")
         return 2
-    if not cfg.get("target") and not args.dry_run:
+    if not cfg.get("target") and not args.dry_run and not cfg.get("weixin_push_paused"):
         log("bridge-config.json 里 target 还没填。先跑:  python bridge.py --targets  看看渠道状态")
         return 2
 

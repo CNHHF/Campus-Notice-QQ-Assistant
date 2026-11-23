@@ -33,7 +33,9 @@ if not alive():
     runtime.mkdir(exist_ok=True)
     with (runtime / 'process.log').open('ab') as log:
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-        process = subprocess.Popen([sys.executable, str(base / 'app.py')], cwd=base, stdout=log, stderr=log, creationflags=flags)
+        local_python = base / '.venv/Scripts/python.exe'
+        interpreter = str(local_python) if local_python.exists() else sys.executable
+        process = subprocess.Popen([interpreter, str(base / 'app.py')], cwd=base, stdout=log, stderr=log, creationflags=flags)
     for _ in range(50):
         if alive():
             break

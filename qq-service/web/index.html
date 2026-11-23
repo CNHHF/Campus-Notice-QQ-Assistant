@@ -11,7 +11,7 @@
   <script defer="" src="/app.js">
   </script>
  </head>
- <body class="inbox-mode">
+ <body class="inbox-mode official-mode">
   <a class="skip-link" href="#main-content">
    跳到页面内容
   </a>
@@ -27,7 +27,7 @@
      校园通知管理中心
     </h1>
     <p>
-     查看校园通知，管理订阅与消息投递。
+     查询校园通知，保存会话筛选。
     </p>
     <label>
      管理口令
@@ -39,7 +39,7 @@
     <p id="login-error" role="alert">
     </p>
     <small>
-     仅在本机运行 · QQ 登录由你本人扫码完成
+     仅在本机运行 · 腾讯官方 QQ Bot
     </small>
    </form>
   </div>
@@ -71,7 +71,7 @@
        通知收件箱
       </span>
      </button>
-     <button aria-label="投递中心" class="nav" data-view="overview" title="投递中心">
+     <button aria-label="采集与查询" class="nav" data-view="overview" title="采集与查询">
       <svg aria-hidden="true" class="nav-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24">
        <rect height="7" rx="1" width="7" x="3" y="3">
        </rect>
@@ -83,10 +83,10 @@
        </rect>
       </svg>
       <span>
-       投递中心
+       采集与查询
       </span>
      </button>
-     <button aria-label="访问与群管理" class="nav" data-view="access" title="访问与群管理">
+     <button aria-label="会话与订阅" class="nav" data-view="access" title="会话与订阅">
       <svg aria-hidden="true" class="nav-icon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24">
        <circle cx="9" cy="8" r="3">
        </circle>
@@ -94,7 +94,7 @@
        </path>
       </svg>
       <span>
-       访问与群管理
+       会话与订阅
       </span>
      </button>
      <button aria-label="接入设置" class="nav" data-view="connect" title="接入设置">
@@ -156,7 +156,7 @@
      </button>
      <span class="dot">
      </span>
-     微信 + QQ 双渠道
+     官方 QQ Bot · 校园通知
      <small>
       学校抓取间隔可在设置中调整
      </small>
@@ -197,7 +197,7 @@
         工作概况
        </span>
        <h2>
-        今天的通知与投递
+        今天的通知与查询
        </h2>
        <p id="overview-schedule">
         正在读取采集计划…
@@ -208,7 +208,7 @@
         浏览通知
        </button>
        <button class="primary" data-view="notices">
-        查询与推送
+        通知查询
         <span aria-hidden="true">
          ↗
         </span>
@@ -251,7 +251,7 @@
       </article>
       <article>
        <span>
-        QQ 成功投递
+        历史 QQ 发送记录
        </span>
        <strong id="metric-sent">
         0
@@ -352,12 +352,12 @@
          </span>
         </div>
         <div class="info-note">
-         新群先建立通知基线，仅自动推送启用后的新通知。发送结果不确定时会保留记录，不自动重发。
+         学校通知按原调度自动采集。群内 @ 机器人查询；官方 QQ 版不提供定时主动推送。
         </div>
        </article>
        <details class="operation-rules">
         <summary>
-         查询与推送约定
+         通知查询约定
         </summary>
         <div class="rule">
          <b>
@@ -381,7 +381,7 @@
            通知始终附原文
           </strong>
           <p>
-           自动推送不调用模型；自然语言查询用 DeepSeek。
+           采集与关键词查询不调用模型；自然语言查询用 DeepSeek。
           </p>
          </div>
         </div>
@@ -434,6 +434,36 @@
      </div>
     </section>
     <section class="view" hidden="" id="access">
+<article class="panel official-access">
+ <div class="panel-heading"><div><h2>官方 QQ Bot 会话筛选</h2><p class="muted">保存会话的来源、分类和关键词，在 QQ 中 @ 机器人发送“查看订阅”查询。</p></div><div class="form-actions"><button class="primary" id="official-add-subscription">新增订阅</button><button class="secondary" id="official-refresh-subscriptions">刷新订阅</button></div></div>
+ <p class="info-note" id="official-access-note">正在读取实际访问范围…</p>
+ <div class="official-command-strip"><span>创建筛选 <code>订阅通知</code></span><span>查询匹配 <code>查看订阅</code></span><span>直接查询 <code>最新通知</code></span></div>
+ <section id="subscription-editor" class="subscription-editor" hidden aria-labelledby="subscription-editor-title">
+  <div class="panel-heading"><h3 id="subscription-editor-title">新增订阅</h3><button class="secondary" id="subscription-editor-close" type="button">取消</button></div>
+  <form id="subscription-form">
+   <div class="subscription-grid">
+    <fieldset><legend>接收会话</legend>
+     <label>从已接入会话选择<select id="subscription-contact"><option value="">选择会话，或在下方填写 OpenID</option></select></label>
+     <div class="subscription-target-fields"><label>会话类型<select id="subscription-kind"><option value="group">群聊</option><option value="c2c">私聊</option></select></label><label>备注<input id="subscription-label" maxlength="80" placeholder="例如：竞赛通知群" /></label></div>
+     <label>官方 OpenID<input id="subscription-target" required autocomplete="off" maxlength="128" placeholder="选择上方会话后自动填入" /></label>
+     <p class="muted">找不到会话时，先在对应私聊或群里 @ 机器人发一次消息，再刷新。此处使用官方 OpenID，不是 QQ 号或群号。</p>
+     <label class="toggle-label"><input id="subscription-enabled" type="checkbox" checked />启用会话筛选</label>
+    </fieldset>
+    <fieldset><legend>订阅内容</legend>
+     <label>来源（不选表示全部）<select id="subscription-sources" multiple size="4"></select></label>
+     <label>分类（不选表示全部）<select id="subscription-categories" multiple size="4"></select></label>
+     <label>包含任一关键词<textarea id="subscription-keywords" rows="2" placeholder="例如：CTF，网络安全，奖学金；逗号或换行分隔"></textarea></label>
+     <p class="muted">同一项内满足任一值即可；来源、分类、关键词之间须同时满足。招聘等全局排除规则始终优先。</p>
+    </fieldset>
+   </div>
+   <div class="form-actions"><button class="primary" id="subscription-save" type="submit">保存订阅</button><button class="secondary" id="subscription-preview" type="button">预览匹配内容</button><span class="muted">保存筛选不会发送消息；查询可重复进行，不是未读队列。</span></div>
+   <div id="subscription-preview-results" class="subscription-preview" aria-live="polite" hidden></div>
+  </form>
+ </section>
+ <div class="official-table-wrap"><table class="official-table"><thead><tr><th>会话 / 备注</th><th>接收对象</th><th>订阅内容</th><th>状态</th><th>操作</th></tr></thead><tbody id="official-subscriptions"></tbody></table></div>
+ <p class="muted">腾讯官方已停止提供主动推送能力。本页仅管理查询筛选；每次群内查询均需 @ 机器人。</p>
+</article>
+
      <div class="section-intro">
       <h2>
        访问名单与群订阅
@@ -493,7 +523,7 @@
        <div class="list" id="group-list">
        </div>
        <div class="info-note">
-        添加群后需另行打开“自动推送”。首次启用建立基线，不补发已有历史。关闭群会同时停止查询与推送。
+        添加群后需另行打开“自动推送”。首次启用建立基线，不补发已有历史。关闭群会同时停止通知查询。
        </div>
       </article>
      </div>
@@ -744,14 +774,12 @@
      </div>
      <div aria-label="设置分区" class="settings-tabs" role="tablist">
       <button aria-controls="pane-automation" aria-selected="true" data-setting-tab="automation" id="tab-automation" role="tab" type="button">
-       采集与推送
+       采集与筛选
       </button>
       <button aria-controls="pane-qq" aria-selected="false" data-setting-tab="qq" id="tab-qq" role="tab" tabindex="-1" type="button">
-       QQ 与模型
+       官方 QQ Bot
       </button>
-      <button aria-controls="pane-weixin" aria-selected="false" data-setting-tab="weixin" id="tab-weixin" role="tab" tabindex="-1" type="button">
-       微信授权
-      </button>
+
      </div>
      <div aria-labelledby="tab-automation" class="settings-pane" id="pane-automation" role="tabpanel">
       <article class="panel schedule-panel">
@@ -761,10 +789,10 @@
        <form id="crawl-schedule-form">
         <label>
          抓取间隔（分钟）
-         <input id="crawl-interval" max="180" min="10" required="" step="1" type="number" value="60"/>
+         <input id="crawl-interval" max="180" min="60" required="" step="1" type="number" value="60"/>
         </label>
         <p class="muted">
-         最低 10 分钟，最长 180 分钟。微信与 QQ 共享这份抓取数据；QQ 的每分钟检查只读本地数据库。保存不立即抓取或推送，运行中的调度最多 5 秒读取新设置；缩短间隔后如已到期，将进入正常抓取轮次。
+         最低 60 分钟，最长 180 分钟。通知采集保持原有调度。保存不立即抓取或发送消息，运行中的调度最多 5 秒读取新设置；缩短间隔后如已到期，将进入正常抓取轮次。
         </p>
         <button class="primary">
          保存抓取间隔
@@ -792,11 +820,11 @@
        <details>
         <summary>
          <strong>
-          自动推送与全局规则
+          会话筛选的全局规则
          </strong>
         </summary>
         <p class="muted">
-         只影响自动推送，查询与手动选择推送仍可使用。群订阅同时受这些规则限制；恢复后仅处理仍在有效期且未推过的通知。
+         用于“查看订阅”和内容预览，招聘等排除规则优先。普通通知检索仍可查询历史。
         </p>
         <form id="push-preferences-form">
          <label class="toggle-label">
@@ -812,7 +840,7 @@
           <textarea id="push-exclude-keywords" maxlength="10000" rows="5"></textarea>
          </label>
          <label>
-          只推这些分类（不选表示全部）
+          包含分类（不选表示全部）
           <select id="push-categories" multiple="" size="5">
           </select>
          </label>
@@ -826,13 +854,47 @@
           <input id="push-max-age" max="30" min="1" required="" type="number" value="30"/>
          </label>
          <button class="primary">
-          保存推送规则与暂停状态
+          保存筛选规则
          </button>
         </form>
        </details>
       </article>
      </div>
      <div aria-labelledby="tab-qq" class="settings-pane" hidden="" id="pane-qq" role="tabpanel">
+<div class="official-panel">
+ <article class="panel">
+  <div class="panel-heading"><div><h2>腾讯官方 QQ Bot</h2><p class="muted">QQ 连接、DeepSeek 查询与通知订阅均由本项目独立运行。</p></div><span id="official-connection-badge" class="badge">正在读取</span></div>
+  <dl class="qq-diagnostics" id="official-diagnostics"></dl>
+  <div class="form-actions"><button class="secondary" id="official-refresh">刷新连接</button><button class="secondary" id="official-start">启动 / 修复服务</button></div>
+ </article>
+ <div class="two-cols official-settings-grid">
+  <article class="panel"><h2>机器人凭据</h2>
+   <form id="official-settings-form">
+    <label>AppID<input id="official-app-id" inputmode="numeric" pattern="[0-9]{5,20}" required autocomplete="off" /></label>
+    <label>AppSecret<input id="official-secret" type="password" autocomplete="new-password" placeholder="已保存；留空保持原值" maxlength="256" /></label>
+    <p class="muted">AppSecret 仅在本机后端保存，不回传页面。填写新值才会替换。</p>
+    <label class="toggle-label"><input id="official-allow-all" type="checkbox" />允许所有能联系机器人的用户查询</label>
+    <label id="official-openids-label">允许访问的 OpenID（每行一个）<textarea id="official-openids" rows="3" placeholder="填写官方 QQ 消息对应的 OpenID"></textarea></label><p class="muted">官方版仅回复查询，不主动推送。关闭允许所有用户后，在下方填写允许访问的 OpenID。</p>
+    <div class="form-actions"><button class="primary" type="submit">保存并连接</button></div>
+   </form>
+   <h2 class="official-model-heading">DeepSeek 模型</h2>
+   <form id="official-model-form">
+    <label>模型 ID<input id="official-model-id" required value="deepseek-flash" maxlength="100" autocomplete="off" /></label>
+    <label>DeepSeek API Key<input id="official-model-key" type="password" autocomplete="new-password" placeholder="留空保留当前密钥" maxlength="256" /></label>
+    <p id="official-model-config-status" class="muted">凭据状态待检查。</p>
+    <button class="primary" type="submit">保存模型配置</button>
+   </form>
+
+  </article>
+  <article class="panel"><h2>通知查询与推送</h2>
+   <dl class="official-help"><dt>查找通知</dt><dd><code>查通知 奖学金</code> 或 <code>最近有哪些竞赛通知</code></dd><dt>查看原文内容</dt><dd>查询后发送 <code>第2条详情</code>，每条结果附原文链接。</dd><dt>接收新增</dt><dd>发送 <code>订阅通知</code>，不补发历史。发送 <code>取消订阅</code> 随时停止。</dd><dt>群内使用</dt><dd>每次提问请 @ 机器人。群聊能力以 QQ 平台开放权限为准。</dd></dl>
+   <p class="info-note">连接成功不代表主动推送已获平台许可。发送被拒绝或回执不确定时，暂停该会话订阅，不自动重发。</p>
+   <p class="muted" id="official-model-note">正在读取 DeepSeek 配置…</p>
+   <a href="https://q.qq.com/qqbot/" target="_blank" rel="noopener noreferrer">QQ 官方机器人开放平台 ↗</a>
+  </article>
+ </div>
+</div>
+
       <article class="panel qq-console-panel">
        <div class="panel-head"><div><p class="eyebrow">QQ 客户端</p><h2>登录与连接</h2></div><span id="qq-console-badge" class="badge">待检查</span></div>
        <p id="qq-console-message" aria-live="polite">在这里检查登录、扫码和消息通道，无需另输 NapCat Token。</p>
@@ -1003,7 +1065,7 @@
     <footer>
      东方 · 校园通知工作站
      <span>
-      本地运行 · 微信保留 · QQ 群仅 @ 回复
+      官方 QQ Bot · 按会话订阅 · 群内 @ 查询
      </span>
     </footer>
    </main>

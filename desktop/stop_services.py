@@ -24,6 +24,10 @@ def selected_process(row, root, gateway_pid):
 
 
 def safe_to_stop(root):
+    official=root/'qq-service/runtime/official-state/subscriptions.sqlite3'
+    if official.exists():
+        with closing(sqlite3.connect('file:'+official.as_posix()+'?mode=ro',uri=True,timeout=2)) as db:
+            if db.execute("SELECT COUNT(*) FROM deliveries WHERE status='sending'").fetchone()[0]:return False
     database=root/'qq-service/runtime/service.db'
     if database.exists():
         with closing(sqlite3.connect('file:'+database.as_posix()+'?mode=ro',uri=True,timeout=2)) as db:
@@ -57,16 +61,20 @@ def main():
     selected.sort(key=lambda r:0 if 'app.py' in (r.get('CommandLine') or '') else 1)
     database=root/'qq-service/runtime/service.db'
     guard=sqlite3.connect(database,timeout=2) if database.exists() else None
+    official=root/'qq-service/runtime/official-state/subscriptions.sqlite3'
+    official_guard=sqlite3.connect(official,timeout=2) if official.exists() else None
     try:
         # Freeze new delivery claims until the scheduler is stopped. An existing
         # sending claim makes us refuse; we never kill a sender between check/send.
         if guard:guard.execute('BEGIN IMMEDIATE')
+        if official_guard:official_guard.execute('BEGIN IMMEDIATE')
         if not safe_to_stop(root):return 10
         for row in selected:
             try:os.kill(int(row['ProcessId']),signal.SIGTERM)
             except ProcessLookupError:pass
     finally:
         if guard:guard.rollback();guard.close()
+        if official_guard:official_guard.rollback();official_guard.close()
     return 0
 
 
