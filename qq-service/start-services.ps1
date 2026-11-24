@@ -39,7 +39,7 @@ if (-not $InspectOnly) {
         if (-not (Find-Collector)) {
             $python=Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
             if (-not (Test-Path -LiteralPath $python)) {$python=(Get-Command python).Source}
-            Start-Process -WindowStyle Hidden -FilePath $python -ArgumentList ('"'+(Join-Path $collectorDir 'bridge.py')+'" --wait-first-round') -WorkingDirectory $collectorDir
+            Start-Process -WindowStyle Hidden -FilePath $python -ArgumentList ('"'+(Join-Path $collectorDir 'bridge.py')+'"') -WorkingDirectory $collectorDir
         }
     } catch {$errorsFound.Add('Collection scheduler launch failed.')}
 }

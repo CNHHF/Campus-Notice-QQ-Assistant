@@ -69,8 +69,8 @@ def run_round(config):
     return wait_crawl_done(base)
 
 
-def wait_for_next_round(resume=False):
-    started = time.time()
+def wait_for_next_round(resume=False, started=None):
+    started = time.time() if started is None else started
     if resume:
         try:
             previous = float(json.loads(SCHEDULE_PATH.read_text(encoding='utf-8'))['wait_started_epoch'])
@@ -88,11 +88,34 @@ def wait_for_next_round(resume=False):
         time.sleep(min(5, remaining))
 
 
+def wait_for_startup():
+    """Use the last real crawl, not a restarted process's waiting timestamp."""
+    try:
+        status = api(load_config()['radar_base'], '/api/items?days=1')
+        if status.get('crawling'):
+            wait_crawl_done(load_config()['radar_base'])
+            wait_for_next_round()
+            return
+        value = status.get('last_run')
+        if value:
+            finished = datetime.fromisoformat(value).timestamp()
+            if finished > time.time():
+                wait_for_next_round()
+            else:
+                wait_for_next_round(started=finished)
+        # No prior crawl: collect once, then use the normal interval.
+    except (OSError, ValueError, TypeError):
+        wait_for_next_round(resume=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Collect campus notices; never sends messages')
     parser.add_argument('--wait-first-round', action='store_true')
     args = parser.parse_args()
-    wait_for_next_round(resume=args.wait_first_round)
+    if args.wait_first_round:
+        wait_for_next_round(resume=True)
+    else:
+        wait_for_startup()
     while True:
         try:
             run_round(load_config())

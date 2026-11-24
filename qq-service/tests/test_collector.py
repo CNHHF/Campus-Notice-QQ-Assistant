@@ -23,9 +23,19 @@ class CollectorTests(unittest.TestCase):
             start.assert_not_called()
 
     def test_startup_waits_before_first_collection(self):
-        with patch.object(sys,'argv',['collector']),patch.object(b,'wait_for_next_round',side_effect=RuntimeError('stop')),patch.object(b,'run_round') as run:
+        with patch.object(sys,'argv',['collector','--wait-first-round']),patch.object(b,'wait_for_next_round',side_effect=RuntimeError('stop')),patch.object(b,'run_round') as run:
             with self.assertRaises(RuntimeError):b.main()
             run.assert_not_called()
+
+    def test_normal_start_uses_last_real_crawl(self):
+        with patch.object(b,'load_config',return_value={'radar_base':'fixture'}),patch.object(b,'api',return_value={'last_run':'2026-11-24 10:00:00'}),patch.object(b.time,'time',return_value=b.datetime(2026,11,24,12).timestamp()),patch.object(b,'wait_for_next_round') as wait:
+            b.wait_for_startup()
+            wait.assert_called_once_with(started=b.datetime(2026,11,24,10).timestamp())
+
+    def test_overdue_anchor_does_not_sleep(self):
+        with patch.object(b,'load_config',return_value={'interval_minutes':60}),patch.object(b.time,'time',return_value=10000),patch.object(b,'save_json'),patch.object(b.time,'sleep') as sleep:
+            b.wait_for_next_round(started=1000)
+            sleep.assert_not_called()
 
     def test_qq_qr_is_local_and_independent(self):
         from qr_renderer import QRRenderer
